@@ -10,7 +10,6 @@ from data.utils import yield_json_files
 
 levels = ['primary', 'junior', 'senior', 'undergraduate', 'graduate']
 subjects = ['computer_science', 'chemistry', 'history', 'geography', 'math', 'physics', 'biology', 'science', 'english', 'chinese', 'political_science']
-types = []
 
 class SamplerModule():
 
@@ -36,46 +35,77 @@ class SamplerModule():
                         'level': level,
                         'subject': subject,
                         'type': type_,
-                        'meta_data': data,
+                        'data': data,
                         'used_scopes': []
                     })
 
         self.datas = pd.DataFrame(datas)
 
-    def change_scope(self, new_scope: str):
+    def set_scope(self, new_scope: str):
 
         self.scope = new_scope
 
-    def get_database_info(self) -> str:
+    def get_question_database_info(self) -> str:
 
-        pass
+        df = self.datas
+        df = df[~df['used_scopes'].apply(lambda scopes: self.scope in scopes)]
+        df_info = ['questions database info (level/subject/type)']
+
+        counts = df.groupby(['level', 'subject', 'type']).size().reset_index(name='count')
+
+        last_level = None
+        last_subject = None
+
+        for _, row in counts.iterrows():
+            level = row['level']
+            subject = row['subject']
+            type_ = row['type']
+            count = row['count']
+
+            if level != last_level:
+                level_count = df[df['level'] == level].shape[0]
+                df_info.append(f'-{level}: {level_count}')
+                last_level = level
+                last_subject = None
+
+            if subject != last_subject:
+                subject_count = df[(df['level'] == level) & (df['subject'] == subject)].shape[0]
+                df_info.append(f'\t-{subject}: {subject_count}')
+                last_subject = subject
+
+            df_info.append(f'\t\t-{type_}: {count}')
+
+        return '\n'.join(df_info)
     
-    def sample_from_database(
+    def sample_question(
         self,
         level: str = None,
         subject: str = None,
         type_: str = None
-    ) -> dict:
+    ) -> str:
         
         df = self.datas
         if level:
-            if level not in df['level'].unique():
+            levels = df['level'].unique()
+            if level not in levels:
                 raise ValueError(
-                    f'Invalid level \'{level}\', level must be one of {df['level'].unique()}.'
+                    f'Invalid level \'{level}\', level must be one of {levels}.'
                 )
             df = df[df['level'] == level]
 
-        if subjects:
-            if subject not in df['subject'].unique():
+        if subject:
+            subjects = df['subject'].unique()
+            if subject not in subjects:
                 raise ValueError(
-                    f'Invalid subject \'{subject}\', subject must be one of {df['subject'].unique()}.'
+                    f'Invalid subject \'{subject}\', subject must be one of {subjects}.'
                 )
             df = df[df['subject'] == subject]
 
         if type_:
-            if type_ not in df['type'].unique():
+            types = df['type'].unique()
+            if type_ not in types:
                 raise ValueError(
-                    f'Invalid type \'{type_}\', type must be one of {df['type'].unique()}.'
+                    f'Invalid type \'{type_}\', type must be one of {types}.'
                 )
             df = df[df['type'] == type_]
 
@@ -84,19 +114,22 @@ class SamplerModule():
         sampled_row = df.sample(n=1).iloc[0]
         sampled_row['used_scopes'].append(self.scope)
 
-        return {
+        sample = {
             'level': sampled_row['level'],  
             'subject': sampled_row['subject'],  
             'type': sampled_row['type'],
-            **sampled_row['meta_data']
+            **sampled_row['data']
         }
+
+        return json.dumps(sample, ensure_ascii = False)
 
 if __name__ == '__main__':
 
     data_dir = './data/zh'
     sampler = SamplerModule(data_dir, scope = 'correction')
 
-    print(sampler.sample_from_database(
+    print(sampler.get_question_database_info())
+    print(sampler.sample_question(
         'junior',
         'math'
     ))
