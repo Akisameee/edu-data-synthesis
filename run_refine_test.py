@@ -2,8 +2,7 @@ import json
 import os
 
 from models import get_model
-from modules.evaluate import EvaluateNode
-from modules.refine import RefineNode
+from modules.actions import *
 
 with open('./data/criteria/evaluation_metrics.json', 'r', encoding = 'utf-8') as file:
     eval_metrics = json.load(file)
@@ -40,9 +39,14 @@ for data in raw_datas:
     state = data['original_data']
     state['criteria'] = criterias[state['theme']]
     for model in models:
-        eval_node = EvaluateNode()
+        eval_node = Evaluate()
         state = eval_node(state = state, llm = model)
     
-    refine_node = RefineNode()
+    refine_node = Refine()
     state = refine_node(state = state, llm = models[-1])
+        
+    for model in models:
+        eval_node = Evaluate()
+        state = eval_node(state = state, llm = model)
+    
     print(state)

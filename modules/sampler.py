@@ -11,12 +11,12 @@ from data.utils import yield_json_files
 levels = ['primary', 'junior', 'senior', 'undergraduate', 'graduate']
 subjects = ['computer_science', 'chemistry', 'history', 'geography', 'math', 'physics', 'biology', 'science', 'english', 'chinese', 'political_science']
 
-class SamplerModule():
+class Sampler():
 
     def __init__(
         self,
         data_dir: str,
-        scope: str
+        scope: str = None
     ) -> None:
         
         self.scope = scope
@@ -126,7 +126,7 @@ class SamplerModule():
 if __name__ == '__main__':
 
     data_dir = './data/zh'
-    sampler = SamplerModule(data_dir, scope = 'correction')
+    sampler = Sampler(data_dir, scope = 'correction')
 
     print(sampler.get_question_database_info())
     print(sampler.sample_question(

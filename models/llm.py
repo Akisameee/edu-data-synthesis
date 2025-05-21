@@ -1,4 +1,3 @@
-from transformers import AutoConfig, AutoModel, AutoTokenizer
 import torch
 import os
 import json
