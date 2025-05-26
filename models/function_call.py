@@ -68,7 +68,7 @@ class LLM_FunctionCalling():
             message = completion.choices[0].message
 
             if hasattr(message, "tool_calls") and message.tool_calls:
-
+                
                 messages.append({
                     'role': 'assistant',  
                     'content': None,  

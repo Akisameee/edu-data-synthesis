@@ -1,0 +1,38 @@
+{
+    "problem_solving": {
+        "task": "回答问题",
+        "description": "user给出一个题目，assistant解答题目"
+    },
+    "error_correction": {
+        "task": "纠错",
+        "description": "user给出一个题目和一个错误的回答，assistant找出错误并进行了解释和修改"
+    },
+    "idea_provision": {
+        "task": "答疑",
+        "description": "user对某个题目或者知识点存在疑问，assistant提供思路/解释原理并解答疑问"
+    },
+    "personalized_learning_support": {
+        "task": "学习路径设计",
+        "description": "user给出学生画像，assistant设计学习路径"
+    },
+    "emotional_support": {
+        "task": "心理辅导",
+        "description": "user说明问题，assistant对user进行心理辅导"
+    },
+    "question_generation": {
+        "task": "题目生成",
+        "description": "user给出学段、科目、知识点等信息，assistant按照给定要求生成题目"
+    },
+    "automatic_grading": {
+        "task": "判题",
+        "description": "user给出一个题目和一个答案，assistant判断答案正误并给出理由"
+    },
+    "teaching_material_generation": {
+        "task": "教学素材生成",
+        "description": "user给出学段、科目、知识点等信息，assistant按照给定要求生成教学素材"
+    },
+    "personalized_content_creation": {
+        "task": "教学建议",
+        "description": "user给出学生画像，assistant给出教学建议"
+    }
+}

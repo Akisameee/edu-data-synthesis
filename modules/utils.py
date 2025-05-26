@@ -1,8 +1,10 @@
 import os
 import json
 import re
+import inspect
+from typing import get_type_hints
 
-def yield_json_files(root_dir):
+def yield_json_files(root_dir: str):
 
     for walk_res in os.walk(root_dir):
         for filename in walk_res[2]:
@@ -21,15 +23,15 @@ def extract_json(response: str):
             json_obj = json.loads(json_str)
             return json_obj 
         except Exception as e:
-            raise ValueError(f'[JSON Parse Error] {str(e)}. Invalid JSON string: {response}')
+            raise ValueError(f'[JSON Parse Error] {str(e)}. Invalid JSON string: {json_str}')
     else:
-        raise ValueError(f'[JSON Parse Error] Code block not found. Invalid json string: {response}')
+        raise ValueError(f'[JSON Parse Error] Code block not found. Invalid response: {response}')
     
-def read_criterias(metrics_path: str, map_path: str):
+def read_criterias(metrics_dir: str):
 
-    with open(metrics_path, 'r', encoding = 'utf-8') as file:
+    with open(os.path.join(metrics_dir, 'evaluation_metrics_old.json'), 'r', encoding = 'utf-8') as file:
         eval_metrics = json.load(file)
-    with open(map_path, 'r', encoding = 'utf-8') as file:
+    with open(os.path.join(metrics_dir, 'metrics_map.json'), 'r', encoding = 'utf-8') as file:
         metrics_map = json.load(file)
 
     criterias = {
@@ -41,3 +43,57 @@ def read_criterias(metrics_path: str, map_path: str):
     }
 
     return criterias
+
+def read_scenarios(theme_dir: str, language: str):
+
+    with open(os.path.join(theme_dir, f'{language}_scenario.json'), 'r', encoding = 'utf-8') as file:
+        scenarios = json.load(file)
+
+    return scenarios
+
+def inspect_method(cls, method_name: str):
+
+    methods = inspect.getmembers(cls, predicate=inspect.isfunction)
+    
+    params = []
+    for name, method in methods:
+        if name == method_name:
+            signature = inspect.signature(method)
+            parameters = signature.parameters
+            type_hints = get_type_hints(method)
+            for param_name, param in parameters.items():
+                param_type = type_hints.get(param_name, None)
+                params.append((param_name, param_type))
+
+    return params
+
+def read_jsonl(path: str):
+
+    json_objs = []
+    with open(path, 'r', encoding = 'utf-8') as file:
+        for idx, line in enumerate(file.readlines()):
+            try:
+                json_obj = json.loads(line)
+                json_objs.append(json_obj)
+            except Exception as e:
+                print(f'Line: {idx}, Error: {e}')
+
+    return json_objs
+
+def write_jsonl(path: str, json_objs: list):
+
+    with open(path, 'w', encoding = 'utf-8') as file:
+        for json_obj in json_objs:
+            file.write(json.dumps(json_obj, ensure_ascii = False) + '\n')
+
+def read_sampled_data(language: str):
+
+    datas = []
+    zh_dir = f'./data_raw/{language}_data_sampled/'
+    for path in os.listdir(zh_dir):
+        with open(os.path.join(zh_dir, path), 'r', encoding = 'utf-8') as file:
+            data = json.load(file)
+            data['language'] = language
+            datas.append(data)
+
+    return datas

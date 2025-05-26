@@ -2,6 +2,7 @@ import torch
 import os
 import json
 from openai import OpenAI
+from openai.types.chat import ChatCompletion
 
 class LLM():
 
@@ -10,7 +11,7 @@ class LLM():
         self.model_name = model_name
         self.client = None
 
-    def get_response(self, **kwargs):
+    def get_response(self, **kwargs) -> ChatCompletion:
 
         raise NotImplementedError
 
@@ -31,11 +32,14 @@ class LLM_API(LLM):
 
     def get_response(
         self,
-        message: list
-    ):
+        messages: list,
+        **kwargs
+    ) -> ChatCompletion:
 
         completion = self.client.chat.completions.create(
             model = self.model_name,
-            messages = message
+            messages = messages,
+            **kwargs
         )
-        return completion.choices[0].message.content.strip()
+
+        return completion

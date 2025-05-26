@@ -28,18 +28,39 @@ model_map = {
             **api_keys['aliyuncs']
         }
     },
+    # 'deepseek-v3': {
+    #     'class': LLM_API,
+    #     'kwargs': {
+    #         'model_name': 'Pro/deepseek-ai/DeepSeek-V3',
+    #         **api_keys['siliconflow']
+    #     }
+    # },
+    # 'deepseek-r1': {
+    #     'class': LLM_API,
+    #     'kwargs': {
+    #         'model_name': 'Pro/deepseek-ai/DeepSeek-R1',
+    #         **api_keys['siliconflow']
+    #     }
+    # },
     'deepseek-v3': {
         'class': LLM_API,
         'kwargs': {
-            'model_name': 'Pro/deepseek-ai/DeepSeek-V3',
-            **api_keys['siliconflow']
+            'model_name': 'deepseek-v3',
+            **api_keys['chatanywhere']
         }
     },
     'deepseek-r1': {
         'class': LLM_API,
         'kwargs': {
-            'model_name': 'Pro/deepseek-ai/DeepSeek-R1',
-            **api_keys['siliconflow']
+            'model_name': 'deepseek-r1',
+            **api_keys['chatanywhere']
+        }
+    },
+    'gpt-4o': {
+        'class': LLM_API,
+        'kwargs': {
+            'model_name': 'gpt-4o',
+            **api_keys['chatanywhere']
         }
     },
 }
@@ -51,5 +72,5 @@ def get_model(
     model = model_map[model_name]['class'](
         **model_map[model_name]['kwargs']
     )
-
+    
     return model

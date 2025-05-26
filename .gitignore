@@ -1,2 +1,4 @@
 models/api_keys.json
-data_raw/example_data*
+data_raw
+gen_res
+eval_res

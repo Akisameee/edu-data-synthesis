@@ -7,11 +7,15 @@ import sys
 sys.path.insert(0, '.')
 
 from data.utils import yield_json_files
+from modules.actions import Action
 
 levels = ['primary', 'junior', 'senior', 'undergraduate', 'graduate']
 subjects = ['computer_science', 'chemistry', 'history', 'geography', 'math', 'physics', 'biology', 'science', 'english', 'chinese', 'political_science']
 
-class Sampler():
+class SampleQuestion(Action):
+
+    required_keys = []
+    description = 'Randomly sample question data from an external dataset based on level, subject, and question type, with each data point being sampled only once'
 
     def __init__(
         self,
@@ -77,7 +81,7 @@ class Sampler():
 
         return '\n'.join(df_info)
     
-    def sample_question(
+    def __call__(
         self,
         level: str = None,
         subject: str = None,
@@ -126,10 +130,10 @@ class Sampler():
 if __name__ == '__main__':
 
     data_dir = './data/zh'
-    sampler = Sampler(data_dir, scope = 'correction')
+    sampler = SampleQuestion(data_dir, scope = 'correction')
 
     print(sampler.get_question_database_info())
-    print(sampler.sample_question(
+    print(sampler.__call__(
         'junior',
         'math'
     ))

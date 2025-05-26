@@ -1,39 +1,65 @@
 import json
+from tqdm import tqdm
 
 from modules.planner import Planner
-from modules.utils import read_criterias
+from modules.utils import *
+
+io_workflow = [
+    ('1', 'user_generate', {'model_name': 'deepseek-v3'}),
+    ('2', 'assistant_generate', {'model_name': 'deepseek-v3'}),
+    ('3', 'output', {})
+]
+
+manual_seq_workflow = [
+    ('1', 'user_generate', {'model_name': 'deepseek-v3'}),
+    ('2', 'assistant_generate', {'model_name': 'deepseek-v3'}),
+    ('3', 'review', {'model_name': 'deepseek-r1'}),
+    ('4', 'refine', {'model_name': 'deepseek-v3'}),
+    ('6', 'output', {})
+]
 
 if __name__ == '__main__':
 
-    criterias = read_criterias(
-        './data/criteria/evaluation_metrics.json',
-        './data/criteria/metrics_map.json'
-    )
+    gen_method = 'function_calling_test'
+    # gen_method = 'io_workflow'
+    # gen_method = 'manual_seq_workflow'
+    # gen_method = 'test_run'
+    language = 'zh'
+
+    scenarios = read_scenarios('./data/scenario', language)
+    criterias = read_criterias('./data/criteria')
 
     models = ['qwen2.5-7b-instruct', 'qwen2.5-14b-instruct', 'qwen-max', 'deepseek-v3', 'deepseek-r1']
-    planner = Planner(
-        models
-    )
+    planner = Planner(models)
 
-    theme = {
-        'task': '纠错',
-        'description': 'user给出了某个题目和一个错误的回答，assistant找出错误并进行了解释和修改'
-    }
-    # theme = {
-    #     'task': '答疑',
-    #     'description': 'user（学生）对某个题目或者知识点存在疑问，assistant（智能体）帮助user解答疑问'
-    # }
-    # theme = {
-    #     'task': '判题',
-    #     'description': 'user（教师或助教）给出一个题目和一个答案，assistant（智能体）帮助user判断答案正误并给出理由'
-    # }
+    sampled_datas = read_jsonl(f'./data_raw/{language}_data_sampled.jsonl')
+    trajectories = []
 
-    init_state = {
-        'theme': theme,
-        'criteria': criterias[theme['task']]
-    }
-    gen_res, trajectory = planner.run(init_state)
-    print(gen_res)
+    for sampled_data in tqdm(sampled_datas):
 
-    with open('./function_calling_log.json', 'w', encoding = 'utf-8') as file:
-        json.dump(trajectory, file, ensure_ascii = False, indent = 4)
+        gen_datas = read_jsonl(f'./gen_res/{gen_method}.jsonl')
+
+        if any(g_d['id'] == sampled_data['id'] for g_d in gen_datas):
+            continue
+
+        scenario = scenarios[sampled_data['task']]
+        init_state = {
+            'scenario': scenario,
+            'criteria': criterias[scenario['task']],
+            'meta_data': sampled_data['meta_data']
+        }
+        try:
+            gen_message, trajectory = planner.run_seq_workflow(
+                init_state, io_workflow
+            )
+            gen_datas.append({
+                **sampled_data,
+                'message': gen_message,
+                'gen': gen_method,
+            })
+        except Exception as e:
+            print(str(e))
+            continue
+        
+        gen_datas.sort(key = lambda d: int(d['id']))
+        write_jsonl(f'./gen_res/{gen_method}.jsonl', gen_datas)

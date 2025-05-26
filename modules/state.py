@@ -3,12 +3,12 @@ import copy
 
 class SynthesisState():
     
-    theme: dict = None
+    scenario: dict = None
     meta_data = None
     criteria: list[dict] = None
 
-    message_query: list[dict] = None
-    message_response: list[dict] = None
+    message: list[dict] = None
+    critique: list[str] = None
     scores: list[dict] = None
 
     def __init__(
@@ -18,6 +18,11 @@ class SynthesisState():
         
         if init_state:
             self.set_state(init_state)
+
+    def init_state(self) -> None:
+
+        for key in self.__dict__.keys():
+            setattr(self, key, None)
 
     def set_state(self, state_dict: dict) -> None:
 
