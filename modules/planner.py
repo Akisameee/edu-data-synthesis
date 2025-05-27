@@ -1,4 +1,5 @@
 import json
+from tqdm import tqdm
 from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 
@@ -41,7 +42,8 @@ class Planner():
 
         planning_agent = get_model('deepseek-v3')
         planning_prompt = planning_template.format(
-            task = self.env.state.scenario['task']
+            task = self.env.state.scenario['task'],
+            init_state = init_response
         )
         trajectory = [{'role': 'user', 'content': planning_prompt}, ]
 
@@ -51,23 +53,30 @@ class Planner():
                 tools = self.env.tools,
                 tool_choice = 'auto',
             )
-            
             message = completion.choices[0].message
-            trajectory.append({'role': 'assistant', 'content': message.content.strip()})
-            
+            trajectory.append({
+                'role': 'assistant',
+                'content': message.content.strip() if message.content else None,
+                'tool_calls': message.tool_calls
+            })
+
             if message.tool_calls:
-                for tool_call in message.tool_calls:
+                tool_call = message.tool_calls[0]
+                tool_call_message = self.env.tool_call(tool_call)
 
-                    tool_call_message = self.env.tool_call(tool_call)
-                    raised_error = tool_call_message.pop('error')
-                    if raised_error:
-                        print(tool_call_message['content'])
-                    trajectory.append(tool_call_message)
+                raised_error = tool_call_message.pop('error')
+                if raised_error:
+                    tqdm.write(tool_call_message['content'])
+                trajectory.append(tool_call_message)
+                
+                if tool_call_message['name'] == 'output':
+                    break
 
-                    if tool_call_message['name'] == 'output':
-                        break
-
-        return self.env.state.message, trajectory
+        for action in trajectory:
+            if action['role'] == 'tool':
+                action['content'] = json.loads(action['content'])
+        
+        return self.env.state, trajectory
         
     def run_seq_workflow(
         self,
@@ -87,5 +96,6 @@ class Planner():
             # print(tool_call_message['content'])
             trajectory.append(tool_call_message)
 
-        return self.env.state.message, trajectory
+        return self.env.state, trajectory
+
 

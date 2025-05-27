@@ -29,11 +29,11 @@ if __name__ == '__main__':
     scenarios = read_scenarios('./data/scenario', language)
     criterias = read_criterias('./data/criteria')
 
-    models = ['qwen2.5-7b-instruct', 'qwen2.5-14b-instruct', 'qwen-max', 'deepseek-v3', 'deepseek-r1']
+    # models = ['qwen2.5-7b-instruct', 'qwen2.5-14b-instruct', 'qwen-max', 'deepseek-v3', 'deepseek-r1']
+    models = ['deepseek-v3', 'deepseek-r1', 'qwen2.5-7b-instruct', 'qwen2.5-14b-instruct', 'qwen-max']
     planner = Planner(models)
 
     sampled_datas = read_jsonl(f'./data_raw/{language}_data_sampled.jsonl')
-    trajectories = []
 
     for sampled_data in tqdm(sampled_datas):
 
@@ -49,16 +49,28 @@ if __name__ == '__main__':
             'meta_data': sampled_data['meta_data']
         }
         try:
-            gen_message, trajectory = planner.run_seq_workflow(
-                init_state, io_workflow
+            # gen_message, trajectory = planner.run_seq_workflow(
+            #     init_state, io_workflow
+            # )
+            gen_state, trajectory = planner.run_function_calling(
+                init_state
             )
+            tool_calls = [
+                {
+                    'name': action['tool_calls'][0].function.name,
+                    'arguments': json.loads(action['tool_calls'][0].function.arguments)
+                } for action in trajectory
+                if action['role'] == 'assistant' and action['tool_calls']
+            ]
             gen_datas.append({
                 **sampled_data,
-                'message': gen_message,
+                'message': gen_state.message,
                 'gen': gen_method,
+                'tool_calls': tool_calls,
+                'cost': gen_state.cost
             })
         except Exception as e:
-            print(str(e))
+            tqdm.write(str(e))
             continue
         
         gen_datas.sort(key = lambda d: int(d['id']))

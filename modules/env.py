@@ -101,21 +101,26 @@ class Environment():
         
         self.state.init_state()
         self.state.set_state(init_state)
-        self.sample_question.set_scope(init_state['scenario']['task'])
+        # self.sample_question.set_scope(init_state['scenario']['task'])
 
-        return self._get_stats()
+        system_generate = SystemGenerate()
+        self.state = system_generate(self.state)
 
-    def _get_stats(self) -> str:
+        return self._get_stats(verbose = True)
 
-        state_info = f'state:\n{self.state.to_str()}'
-        action_info = f'available_actions:\n{json.dumps(self._available_actions, ensure_ascii = False)}'
-        model_info = f'available_models:\n{json.dumps(self.model_names, ensure_ascii = False)}'
+    def _get_stats(self, verbose: bool = False) -> str:
 
-        return f'{state_info}\n{action_info}\n{model_info}\n'
+        stats = {
+            'state': self.state.to_dict(verbose),
+            'available_actions': self._available_actions,
+            'available_models': self.model_names
+        }
+
+        return json.dumps(stats, ensure_ascii = False)
     
-    def _sample_question(self, **kwargs):
+    # def _sample_question(self, **kwargs):
 
-        self.state.meta_data = self.sample_question(**kwargs)
+    #     self.state.meta_data = self.sample_question(**kwargs)
 
     def _user_generate(self, model_name: str):
 
@@ -163,6 +168,7 @@ class Environment():
             
             py_func = self.functions[tool_name]
             try:
+                tqdm.write(f'Tool call: {tool_name}({function_args})')
                 py_func(**function_args)
             except Exception as e:
                 raise ValueError(f'[Tool Execution Error] {str(e)}')

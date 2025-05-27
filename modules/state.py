@@ -4,12 +4,14 @@ import copy
 class SynthesisState():
     
     scenario: dict = None
-    meta_data = None
+    meta_data: str = None
     criteria: list[dict] = None
 
     message: list[dict] = None
     critique: list[str] = None
     scores: list[dict] = None
+
+    cost: float = 0.0
 
     def __init__(
         self,
@@ -23,6 +25,7 @@ class SynthesisState():
 
         for key in self.__dict__.keys():
             setattr(self, key, None)
+        self.cost = 0.0
 
     def set_state(self, state_dict: dict) -> None:
 
@@ -31,24 +34,44 @@ class SynthesisState():
 
     def keys(self) -> set:
 
-        return self.__dict__.keys()
+        return [
+            key for key, value in self.__dict__.items()
+            if value is not None
+        ]
+    
+    def items(self) -> set:
 
-    def to_dict(self) -> dict:
+        return [
+            (key, value) for key, value in self.__dict__.items()
+            if value is not None
+        ]
+
+    def to_dict(self, verbose: bool = False) -> dict:
 
         state_dict = {}
-        for key, value in self.__dict__.items():
-            if not value:
-                continue
-            if key == 'criteria':
-                criteria = copy.deepcopy(value)
-                for metric in criteria:
-                    metric['levels'] = '<score levels>'
-                state_dict[key] = criteria
-            else:
-                state_dict[key] = value
+        if verbose:
+            for key, value in self.items():
+                if key == 'criteria':
+                    criteria = copy.deepcopy(value)
+                    for metric in criteria:
+                        metric['levels'] = '<score levels>'
+                    state_dict[key] = criteria
+                else:
+                    state_dict[key] = value
+        else:
+            for key, value in self.items():
+                if key in ['message', 'cost']:
+                    state_dict[key] = value
+                elif key == 'scores':
+                    state_dict[key] = {
+                        score['criterion']: score['score']
+                        for score in value
+                    }
+                else:
+                    state_dict[key] = f'<{key}>'
         
         return state_dict
 
-    def to_str(self) -> str:
+    def to_str(self, verbose: bool = False) -> str:
         
-        return json.dumps(self.to_dict(), ensure_ascii = False)
+        return json.dumps(self.to_dict(verbose), ensure_ascii = False)

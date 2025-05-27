@@ -2,7 +2,7 @@ import os
 import json
 import re
 import inspect
-from typing import get_type_hints
+from typing import get_type_hints, Optional, List, Tuple, Any
 
 def yield_json_files(root_dir: str):
 
@@ -51,16 +51,17 @@ def read_scenarios(theme_dir: str, language: str):
 
     return scenarios
 
-def inspect_method(cls, method_name: str):
+def inspect_method(cls, method_name: str) -> List[Tuple[str, Optional[type]]]:
 
     methods = inspect.getmembers(cls, predicate=inspect.isfunction)
     
     params = []
     for name, method in methods:
         if name == method_name:
-            signature = inspect.signature(method)
+            unwarpped_method = inspect.unwrap(method)
+            signature = inspect.signature(unwarpped_method)
             parameters = signature.parameters
-            type_hints = get_type_hints(method)
+            type_hints = get_type_hints(unwarpped_method)
             for param_name, param in parameters.items():
                 param_type = type_hints.get(param_name, None)
                 params.append((param_name, param_type))

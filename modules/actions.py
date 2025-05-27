@@ -1,4 +1,6 @@
+from tqdm import tqdm
 from copy import deepcopy
+import functools
 
 from models import LLM
 from modules.state import SynthesisState
@@ -9,6 +11,7 @@ def retry(
     max_attempt: int = 3,
 ):
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             n_attempt = 0
             while n_attempt < max_attempt:
@@ -16,7 +19,7 @@ def retry(
                     return func(*args, **kwargs)
                 except Exception as e:
                     n_attempt += 1
-                    print(f"Attempt {n_attempt} failed: {e}")
+                    tqdm.write(f"Attempt {n_attempt} failed: {e}")
                     if n_attempt == max_attempt:
                         raise e
         return wrapper
@@ -27,6 +30,22 @@ class Action():
     required_keys: tuple = ()
     description: str = ''
 
+    def _check_required_key(
+        self,
+        state: SynthesisState,
+        required_key: str
+    ):
+        if required_key.startswith('message'):
+            last_role = required_key.split('_')[-1]
+            if state.message[-1]['role'] != last_role:
+                return ValueError(f'Invalid message: the role of last message must be {last_role}.')
+            
+        elif required_key not in state.keys() or \
+            getattr(state, required_key) is None:
+            return KeyError(f'Missing key \'{required_key}\' in state.')
+        
+        return None
+
     def check_required_keys(
         self,
         state: SynthesisState,
@@ -36,16 +55,14 @@ class Action():
             required_keys = self.required_keys
         
         for required_key in required_keys:
-            if required_key.startswith('message'):
-                last_role = required_key.split('_')[-1]
-                if not state.message and last_role == 'assistant':
+            if isinstance(required_key, str):
+                exception = self._check_required_key(state, required_key)
+                if exception: raise exception
+            elif isinstance(required_key, tuple):
+                if any(self._check_required_key(state, r_k) is None for r_k in required_key):
                     continue
-                if state.message[-1]['role'] != last_role:
-                    raise ValueError(f'Invalid message: the role of last message must be {last_role}.')
-                
-            elif required_key not in state.keys() or \
-                getattr(state, required_key) is None:
-                raise KeyError(f'Missing key \'{required_key}\' in state.')
+                else:
+                    raise ValueError(f'Missing key \'{required_key}\' in state.')
 
     @property
     def parameters(self):
@@ -70,20 +87,44 @@ class Action():
             required.append(param_name)
 
         return {
-            'type': 'object',  
+            'type': 'object',
             'properties': properties,
             'required': required
         }
+    
+class SystemGenerate(Action):
+
+    required_keys = ('scenario', 'criteria')
+    description = 'Append system prompt to message'
+
+    def __call__(
+        self,
+        state: SynthesisState
+    ) -> SynthesisState:
+        
+        system_prompt = system_template.format(
+            task = state.scenario['task'],
+            criteria = '\n'.join([c['metric'] for c in state.criteria])
+        )
+        state.message = [{'role': 'system', 'content': system_prompt}, ]
+        state.critique = None
+        state.scores = None
+
+        return state
 
 class UserGenerate(Action):
 
-    required_keys = ('scenario', 'meta_data', 'message_assistant')
+    required_keys = ('scenario', 'meta_data', ('message_system', 'message_assistant'))
     description = 'Play as user and send a query to assistant'
 
-    def format_res(self, message: list, gen_res: str):
+    @staticmethod
+    def replace_meta_data(content: str, meta_data: str):
 
-        json_obj = extract_json(gen_res)
-        assert json_obj['role'] == 'user'
+        if '<meta_data>' in content:
+            content = content.replace('<meta_data>', meta_data, 1)
+        else:
+            content = f'{meta_data}\n{content}'
+        return content
 
     @retry(max_attempt = 3)
     def __call__(
@@ -92,31 +133,30 @@ class UserGenerate(Action):
         llm: LLM
     ) -> SynthesisState:
         self.check_required_keys(state)
-
-        if state.message is None:
-            system_prompt = system_template.format(
-                task = state.scenario['task'],
-                criteria = '\n'.join([c['metric'] for c in state.criteria])
-            )
-            state.message = [{'role': 'system', 'content': system_prompt}]
         
-        prompt = user_generation_template.format(
+        prompt = user_generate_template.format(
             scenario = state.scenario,
             meta_data = state.meta_data,
             message = state.message
         )
-        response = llm.get_response(
-            messages = [{'role': 'user', 'content': prompt}, ]
-        ).choices[0].message.content.strip()
+
+        messages = [{'role': 'user', 'content': prompt}, ]
+        completion = llm.get_response(messages = messages)
+        state.cost += llm.cost(completion)
+        response = completion.choices[0].message.content.strip()
         
         json_obj = extract_json(response)
+        assert json_obj['role'] == 'user'
         assert 'role' in json_obj and 'content' in json_obj
         assert json_obj['role'] == 'user'
         
         state.message.append({
             'role': 'user',
-            'content': json_obj['content']
+            'content': self.replace_meta_data(
+                json_obj['content'], state.meta_data
+            )
         })
+        state.critique = None
         state.scores = None
 
         return state
@@ -134,12 +174,13 @@ class AssistantGenerate(Action):
     ) -> SynthesisState:
         self.check_required_keys(state)
         
-        generation_res = llm.get_response(
-            messages = state.message
-        ).choices[0].message.content.strip()
+        completion = llm.get_response(messages = state.message)
+        state.cost += llm.cost(completion)
+        response = completion.choices[0].message.content.strip()
+
         state.message.append({
             'role': 'assistant',
-            'content': generation_res
+            'content': response
         })
         state.scores = None
         
@@ -178,10 +219,11 @@ class Evaluate(Action):
             message = message,
             criteria = state.criteria
         )
-        response = llm.get_response(
-            messages = [{'role': 'user', 'content': prompt}, ],
-            temperature = 0.0
-        ).choices[0].message.content.strip()
+        
+        messages = [{'role': 'user', 'content': prompt}, ]
+        completion = llm.get_response(messages = messages, temperature = 0.0)
+        state.cost += llm.cost(completion)
+        response = completion.choices[0].message.content.strip()
 
         scores = extract_json(response)
         self.check_scores(scores, state.criteria)
@@ -211,9 +253,11 @@ class Review(Action):
             message = message,
             criteria = state.criteria
         )
-        response = llm.get_response(
-            messages = [{'role': 'user', 'content': prompt}, ]
-        ).choices[0].message.content.strip()
+
+        messages = [{'role': 'user', 'content': prompt}, ]
+        completion = llm.get_response(messages = messages)
+        state.cost += llm.cost(completion)
+        response = completion.choices[0].message.content.strip()
 
         critique = extract_json(response)
         state.critique = critique
@@ -248,9 +292,11 @@ class Refine(Action):
             assistant_idxs = assistant_idxs,
             critique = state.critique
         )
-        response = llm.get_response(
-            messages = [{'role': 'user', 'content': prompt}, ]
-        ).choices[0].message.content.strip()
+        
+        messages = [{'role': 'user', 'content': prompt}, ]
+        completion = llm.get_response(messages = messages)
+        state.cost += llm.cost(completion)
+        response = completion.choices[0].message.content.strip()
         
         refined_dict = extract_json(response)
         for idx, refined_m in refined_dict.items():

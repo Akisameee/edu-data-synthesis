@@ -14,6 +14,10 @@ class LLM():
     def get_response(self, **kwargs) -> ChatCompletion:
 
         raise NotImplementedError
+    
+    def cost(self, **kwargs) -> float:
+
+        raise NotImplementedError
 
 class LLM_API(LLM):
 
@@ -21,7 +25,8 @@ class LLM_API(LLM):
         self,
         model_name: str,
         api_key: str,
-        base_url: str
+        base_url: str,
+        price: dict
     ) -> None:
         super().__init__(model_name)
 
@@ -29,6 +34,7 @@ class LLM_API(LLM):
             api_key = api_key,
             base_url = base_url
         )
+        self.price = price
 
     def get_response(
         self,
@@ -43,3 +49,8 @@ class LLM_API(LLM):
         )
 
         return completion
+    
+    def cost(self, completion: ChatCompletion) -> float:
+
+        return completion.usage.prompt_tokens * self.price['prompt'] + \
+            completion.usage.completion_tokens * self.price['completion']
