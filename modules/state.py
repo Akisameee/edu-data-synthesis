@@ -9,7 +9,7 @@ class SynthesisState():
 
     message: list[dict] = None
     critique: list[str] = None
-    scores: list[dict] = None
+    scores: dict = None
 
     cost: float = 0.0
 
@@ -64,8 +64,10 @@ class SynthesisState():
                     state_dict[key] = value
                 elif key == 'scores':
                     state_dict[key] = {
-                        score['criterion']: score['score']
-                        for score in value
+                        model_name: {
+                            score['criterion']: score['score']
+                            for score in model_scores
+                        } for model_name, model_scores in value.items()
                     }
                 else:
                     state_dict[key] = f'<{key}>'

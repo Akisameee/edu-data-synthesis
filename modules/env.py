@@ -164,7 +164,7 @@ class Environment():
             try:
                 function_args = json.loads(function_args_json)
             except Exception as e:
-                raise ValueError('[Argument Error] Failed to parse arguments: {e}\nArgument content: {function_args_json}')
+                raise ValueError(f'[Argument Error] Failed to parse arguments: {e}\nArgument content: {function_args_json}')
             
             py_func = self.functions[tool_name]
             try:

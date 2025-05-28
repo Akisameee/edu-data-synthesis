@@ -14,7 +14,7 @@ def yield_json_files(root_dir: str):
 
 def extract_json(response: str):
 
-    match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+    match = re.search(r'```json\s*(.*)\s*```', response, re.DOTALL)
 
     if match:
         json_str = match.group(1)

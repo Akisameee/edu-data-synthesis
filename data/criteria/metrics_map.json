@@ -1,17 +1,15 @@
 {
     "纠错": [
       "1.1 指令遵循与任务完成 (Instruction Following & Task Completion)",
-      "1.4 场景要素融合度 (Scenario Element Integration)",
       "2.1 基础事实准确性 (Basic Factual Accuracy)",
       "2.3 推理过程严谨性 (Reasoning Process Rigor)",
       "2.4 错误识别与纠正精确性 (Error Identification & Correction Precision)",
       "3.1 清晰易懂与表达启发 (Clarity, Simplicity & Inspiration)",
       "3.2 激励引导与积极反馈 (Motivation, Guidance & Positive Feedback)"
     ],
-    "答疑": [
+    "思路提供": [
       "1.1 指令遵循与任务完成 (Instruction Following & Task Completion)",
       "1.3 内容相关性与范围控制 (Content Relevance & Scope Control)",
-      "1.4 场景要素融合度 (Scenario Element Integration)",
       "2.1 基础事实准确性 (Basic Factual Accuracy)",
       "2.2 领域知识专业性 (Domain Knowledge Accuracy)",
       "2.3 推理过程严谨性 (Reasoning Process Rigor)",
@@ -20,11 +18,9 @@
     ],
     "判题": [
       "1.1 指令遵循与任务完成 (Instruction Following & Task Completion)",
-      "1.3 内容相关性与范围控制 (Content Relevance & Scope Control)",
       "2.1 基础事实准确性 (Basic Factual Accuracy)",
       "2.3 推理过程严谨性 (Reasoning Process Rigor)",
-      "2.4 错误识别与纠正精确性 (Error Identification & Correction Precision)",
-      "3.2 激励引导与积极反馈 (Motivation, Guidance & Positive Feedback)"
+      "2.4 错误识别与纠正精确性 (Error Identification & Correction Precision)"
     ],
     "教学素材生成": [
       "1.1 指令遵循与任务完成 (Instruction Following & Task Completion)",
@@ -53,7 +49,6 @@
       "1.3 内容相关性与范围控制 (Content Relevance & Scope Control)",
       "2.1 基础事实准确性 (Basic Factual Accuracy)",
       "2.2 领域知识专业性 (Domain Knowledge Accuracy)",
-      "3.1 清晰易懂与表达启发 (Clarity, Simplicity & Inspiration)",
       "3.4 促进高阶思维与能力发展 (Higher-Order Thinking & Skill Development)"
     ],
     "教学建议": [
@@ -63,7 +58,6 @@
     ],
     "学习路径设计": [
       "1.1 指令遵循与任务完成 (Instruction Following & Task Completion)",
-      "1.2 角色与口吻一致性 (Role & Tone Consistency)",
       "1.4 场景要素融合度 (Scenario Element Integration)",
       "3.3 个性化适应与学习支持 (Personalization, Adaptation & Learning Support)",
       "3.4 促进高阶思维与能力发展 (Higher-Order Thinking & Skill Development)"

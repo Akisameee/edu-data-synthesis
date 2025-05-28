@@ -8,7 +8,7 @@
         "description": "user给出一个题目和一个错误的回答，assistant找出错误并进行了解释和修改"
     },
     "idea_provision": {
-        "task": "答疑",
+        "task": "思路提供",
         "description": "user对某个题目或者知识点存在疑问，assistant提供思路/解释原理并解答疑问"
     },
     "personalized_learning_support": {
@@ -33,6 +33,6 @@
     },
     "personalized_content_creation": {
         "task": "教学建议",
-        "description": "user给出学生画像，assistant给出教学建议"
+        "description": "user给出学生画像，assistant规划教学建议"
     }
 }

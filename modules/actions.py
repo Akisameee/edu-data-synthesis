@@ -120,8 +120,8 @@ class UserGenerate(Action):
     @staticmethod
     def replace_meta_data(content: str, meta_data: str):
 
-        if '<meta_data>' in content:
-            content = content.replace('<meta_data>', meta_data, 1)
+        if '[meta_data]' in content:
+            content = content.replace('[meta_data]', meta_data, 1)
         else:
             content = f'{meta_data}\n{content}'
         return content
@@ -134,10 +134,14 @@ class UserGenerate(Action):
     ) -> SynthesisState:
         self.check_required_keys(state)
         
+        message = deepcopy(state.message)
+        if message[0]['role'] == 'system':
+            message = message[1:]
+
         prompt = user_generate_template.format(
             scenario = state.scenario,
             meta_data = state.meta_data,
-            message = state.message
+            message = message
         )
 
         messages = [{'role': 'user', 'content': prompt}, ]
@@ -195,12 +199,12 @@ class Evaluate(Action):
 
         if set(score['criterion'] for score in scores) != \
             set(c['metric'] for c in criteria):
-            raise ValueError(f'[Score Parse Error] Invalid criterion format: {scores}')
+            raise ValueError(f'[Score Parse Error] Invalid criteria: {scores}.')
         
         for score in scores:
             value = score['score']
             if not isinstance(value, (int, float)):
-                raise ValueError(f'[Score Parse Error] Invalid score value: {value}')
+                raise ValueError(f'[Score Parse Error] Invalid score value: {value}.')
 
     @retry(max_attempt = 3)
     def __call__(
@@ -227,7 +231,9 @@ class Evaluate(Action):
 
         scores = extract_json(response)
         self.check_scores(scores, state.criteria)
-        state.scores = scores
+        if state.scores is None: 
+            state.scores = {}
+        state.scores[llm.model_name] = scores
         
         return state
     
@@ -298,11 +304,14 @@ class Refine(Action):
         state.cost += llm.cost(completion)
         response = completion.choices[0].message.content.strip()
         
-        refined_dict = extract_json(response)
+        refined_dict: dict = extract_json(response)
+        if all(idx not in assistant_idxs for idx in refined_dict.keys()):
+            raise ValueError(f'[Refine Error] Invalid message indexs: {refined_dict.keys()}.')
+
         for idx, refined_m in refined_dict.items():
-            if int(idx) not in assistant_idxs:
-                continue
             assert refined_m['role'] == 'assistant'
+            if state.message[int(idx)]['content'] == refined_m['content']:
+                raise ValueError('[Refine Error] No content changes.')
             state.message[int(idx)]['content'] = refined_m['content']
         
         state.scores = None
