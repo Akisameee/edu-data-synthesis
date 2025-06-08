@@ -1,10 +1,10 @@
 import json
 from openai import OpenAI
-from models.llm import LLM
+from models.llm import Base_LLM
 
 class LLM_FunctionCalling():
 
-    def __init__(self, llm: LLM) -> None:
+    def __init__(self, llm: Base_LLM) -> None:
         
         self.llm = llm
         self.model_name = llm.model_name

@@ -1,6 +1,6 @@
 import json
 
-from models.llm import LLM, LLM_API
+from models.llm import Base_LLM, LLM_API
 from models.function_call import LLM_FunctionCalling
 
 with open('./models/api_keys.json', 'r') as file:
@@ -91,7 +91,7 @@ model_map = {
 
 def get_model(
     model_name: str
-) -> LLM:
+) -> Base_LLM:
     
     model = model_map[model_name]['class'](
         **model_map[model_name]['kwargs']

@@ -9,7 +9,7 @@ try:
     from vllm import SamplingParams
 except:
     pass
-class LLM():
+class Base_LLM():
 
     def __init__(self, model_name: str) -> None:
         
@@ -24,7 +24,7 @@ class LLM():
 
         raise NotImplementedError
 
-class LLM_API(LLM):
+class LLM_API(Base_LLM):
 
     def __init__(
         self,
@@ -60,7 +60,7 @@ class LLM_API(LLM):
         return completion.usage.prompt_tokens * self.price['prompt'] + \
             completion.usage.completion_tokens * self.price['completion']
     
-class LLM_VLLM(LLM):
+class LLM_VLLM(Base_LLM):
 
     def __init__(
         self,
@@ -73,7 +73,7 @@ class LLM_VLLM(LLM):
         super().__init__(model_name)
 
         # 初始化vllm引擎和生成参数
-        self.llm = LLM(
+        self.llm = Base_LLM(
             model = args.model_path,
             tensor_parallel_size = getattr(args, 'tensor_parallel_size', 1),
             dtype = getattr(args, 'dtype', 'auto'),

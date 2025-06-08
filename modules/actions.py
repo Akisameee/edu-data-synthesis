@@ -2,7 +2,7 @@ from tqdm import tqdm
 from copy import deepcopy
 import functools
 
-from models import LLM
+from models import Base_LLM
 from modules.state import SynthesisState
 from modules.prompt_templates import *
 from modules.utils import *
@@ -74,7 +74,7 @@ class Action():
                 continue
             elif param_type == SynthesisState:
                 continue
-            elif param_type == LLM:
+            elif param_type == Base_LLM:
                 properties['model_name'] = {
                     'type': 'string',
                     'description': 'Name of LLM used to preform this action'
@@ -130,7 +130,7 @@ class UserGenerate(Action):
     def __call__(
         self,
         state: SynthesisState,
-        llm: LLM
+        llm: Base_LLM
     ) -> SynthesisState:
         self.check_required_keys(state)
         
@@ -174,7 +174,7 @@ class AssistantGenerate(Action):
     def __call__(
         self,
         state: SynthesisState,
-        llm: LLM
+        llm: Base_LLM
     ) -> SynthesisState:
         self.check_required_keys(state)
         
@@ -210,7 +210,7 @@ class Evaluate(Action):
     def __call__(
         self,
         state: SynthesisState,
-        llm: LLM
+        llm: Base_LLM
     ) -> SynthesisState:
         self.check_required_keys(state)
         
@@ -246,7 +246,7 @@ class Review(Action):
     def __call__(
         self,
         state: SynthesisState,
-        llm: LLM
+        llm: Base_LLM
     ) -> SynthesisState:
         self.check_required_keys(state)
 
@@ -279,7 +279,7 @@ class Refine(Action):
     def __call__(
         self,
         state: SynthesisState,
-        llm: LLM
+        llm: Base_LLM
     ) -> SynthesisState:
         self.check_required_keys(state)
 
