@@ -9,8 +9,8 @@ from modules.utils import *
 
 if __name__ == '__main__':
 
-    gen_method = 'function_calling_test'
-    # gen_method = 'io_workflow'
+    # gen_method = 'function_calling_test'
+    gen_method = 'io_workflow'
     # gen_method = 'manual_seq_workflow'
     # gen_method = 'test_run'
     language = 'zh'

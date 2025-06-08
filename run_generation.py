@@ -20,8 +20,8 @@ manual_seq_workflow = [
 
 if __name__ == '__main__':
 
-    gen_method = 'function_calling_test'
-    # gen_method = 'io_workflow'
+    # gen_method = 'function_calling_test'
+    gen_method = 'io_workflow'
     # gen_method = 'manual_seq_workflow'
     # gen_method = 'test_run'
     language = 'zh'
@@ -50,13 +50,13 @@ if __name__ == '__main__':
             'meta_data': sampled_data['meta_data']
         }
         try:
-            # gen_message, trajectory = planner.run_seq_workflow(
-            #     init_state, io_workflow
-            # )
-            gen_state, trajectory = planner.run_function_calling(
-                init_state,
-                max_tool_call = 20
+            gen_state, trajectory = planner.run_seq_workflow(
+                init_state, io_workflow
             )
+            # gen_state, trajectory = planner.run_function_calling(
+            #     init_state,
+            #     max_tool_call = 20
+            # )
             tool_calls = [
                 {
                     'name': action['tool_calls'][0].function.name,
