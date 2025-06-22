@@ -319,6 +319,22 @@ class Refine(Action):
 
         return state
     
+class ResponseAggregate(Action):
+
+    required_keys = []
+    description = 'Aggregate responses'
+
+    @retry(max_attempt = 3)
+    def __call__(
+        self,
+        state: SynthesisState,
+    ) -> SynthesisState:
+        self.check_required_keys(state)
+
+        prompt = response_aggregate_template.format(
+            scenario = state.scenario
+        )
+    
 class Output(Action):
 
     required_keys = ('message_assistant', )

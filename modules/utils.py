@@ -3,6 +3,8 @@ import json
 import re
 import inspect
 from typing import get_type_hints, Optional, List, Tuple, Any
+import functools
+from tqdm import tqdm
 
 def yield_json_files(root_dir: str):
 
@@ -23,9 +25,34 @@ def extract_json(response: str):
             json_obj = json.loads(json_str)
             return json_obj 
         except Exception as e:
-            raise ValueError(f'[JSON Parse Error] {str(e)}. Invalid JSON string: {json_str}')
+            try:
+                json_obj = fix_json_close(json_str)
+                return json_obj
+            except:
+                raise ValueError(f'[JSON Parse Error] {str(e)}. Invalid JSON string: {json_str}')
     else:
-        raise ValueError(f'[JSON Parse Error] Code block not found. Invalid response: {response}')
+        return extract_json(f'```json{response}```')
+        # raise ValueError(f'[JSON Parse Error] Code block not found. Invalid response: {response}')
+
+def fix_json_close(json_str: str):
+
+    # close_map = {'[': ']', '{': '}'}
+    close_prefix, close_suffix = [], []
+    for idx in range(len(json_str)):
+        if json_str[idx] in ['[', '{']:
+            close_prefix.append(json_str[idx])
+        else: break
+    for idx in range(len(json_str) - 1, 0, -1):
+        if json_str[idx] in [']', '}']:
+            close_suffix.append(json_str[idx])
+        else: break
+    
+    if len(close_prefix) > len(close_suffix):
+        json_str = json_str[len(close_prefix) - len(close_suffix):]
+    elif len(close_prefix) < len(close_suffix):
+        json_str = json_str[: -(len(close_suffix) - len(close_prefix))]
+
+    return json.loads(json_str)
     
 def read_criterias(metrics_dir: str):
 
@@ -98,3 +125,21 @@ def read_sampled_data(language: str):
             datas.append(data)
 
     return datas
+
+def retry(
+    max_attempt: int = 3,
+):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            n_attempt = 0
+            while n_attempt < max_attempt:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    n_attempt += 1
+                    tqdm.write(f"Attempt {n_attempt} failed: {e}")
+                    if n_attempt == max_attempt:
+                        raise e
+        return wrapper
+    return decorator
