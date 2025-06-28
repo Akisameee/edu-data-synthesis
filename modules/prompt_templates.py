@@ -93,6 +93,21 @@ evaluation_aggregate_template = \
 {criteria}
 '''
 
+evaluation_voting_template = \
+'''
+我将向你提供一个在教育领域下特定场景的对话以及一组大模型对于这段对话的评分，请选择一个你认为最合理的评分。
+你需要观察并分析评分与原因是否和评估指标中的评分标准对应、是与否与对话内容相对应，最终给出你的选项。
+结果以\\boxed{{<你的选项>}}给出（大写字母）
+
+场景：
+{scenario}
+对话：
+{message}
+评估指标：
+{criteria}
+评分：
+'''
+
 planning_template = \
 '''
 你是一个规划智能体，你需要通过调用工具执行教育领域{task}场景下的数据生成过程。

@@ -10,7 +10,7 @@ model_map = {
     'qwen2.5-7b-instruct': {
         'class': LLM_API,
         'kwargs': {
-            'model_name': 'Qwen/Qwen2.5-7B-Instruct',
+            'model_name_client': 'Qwen/Qwen2.5-7B-Instruct',
             **api_keys['siliconflow'],
             'price': {
                 'prompt': 0.00035 / 1000,
@@ -21,7 +21,7 @@ model_map = {
     'qwen2.5-14b-instruct': {
         'class': LLM_API,
         'kwargs': {
-            'model_name': 'Qwen/Qwen2.5-14B-Instruct',
+            'model_name_client': 'Qwen/Qwen2.5-14B-Instruct',
             **api_keys['siliconflow'],
             'price': {
                 'prompt': 0.0007 / 1000,
@@ -32,7 +32,7 @@ model_map = {
     'qwen-max': {
         'class': LLM_API,
         'kwargs': {
-            'model_name': 'qwen-max',
+            'model_name_client': 'qwen-max',
             **api_keys['aliyuncs'],
             'price': {
                 'prompt': 0.0024 / 1000,
@@ -43,21 +43,29 @@ model_map = {
     # 'deepseek-v3': {
     #     'class': LLM_API,
     #     'kwargs': {
-    #         'model_name': 'Pro/deepseek-ai/DeepSeek-V3',
-    #         **api_keys['siliconflow']
-    #     }
+    #         'model_name_client': 'Pro/deepseek-ai/DeepSeek-V3',
+    #         **api_keys['siliconflow'],
+    #         'price': {
+    #             'prompt': 2e-6,
+    #             'completion': 8e-6
+    #         }
+    #     },
     # },
     # 'deepseek-r1': {
     #     'class': LLM_API,
     #     'kwargs': {
-    #         'model_name': 'Pro/deepseek-ai/DeepSeek-R1',
-    #         **api_keys['siliconflow']
+    #         'model_name_client': 'Pro/deepseek-ai/DeepSeek-R1',
+    #         **api_keys['siliconflow'],
+    #         'price': {
+    #             'prompt': 4e-6,
+    #             'completion': 1.6e-5
+    #         }
     #     }
     # },
     'deepseek-v3': {
         'class': LLM_API,
         'kwargs': {
-            'model_name': 'deepseek-v3',
+            'model_name_client': 'deepseek-v3',
             **api_keys['chatanywhere'],
             'price': {
                 'prompt': 0.0012 / 1000,
@@ -68,7 +76,7 @@ model_map = {
     'deepseek-r1': {
         'class': LLM_API,
         'kwargs': {
-            'model_name': 'deepseek-r1',
+            'model_name_client': 'deepseek-r1',
             **api_keys['chatanywhere'],
             'price': {
                 'prompt': 0.0024 / 1000,
@@ -79,7 +87,7 @@ model_map = {
     'gpt-4o': {
         'class': LLM_API,
         'kwargs': {
-            'model_name': 'gpt-4o',
+            'model_name_client': 'gpt-4o',
             **api_keys['chatanywhere'],
             'price': {
                 'prompt': 0.0175 / 1000,
@@ -94,6 +102,7 @@ def get_model(
 ) -> Base_LLM:
     
     model = model_map[model_name]['class'](
+        model_name = model_name,
         **model_map[model_name]['kwargs']
     )
     

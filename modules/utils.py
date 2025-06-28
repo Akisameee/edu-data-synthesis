@@ -53,6 +53,19 @@ def fix_json_close(json_str: str):
         json_str = json_str[: -(len(close_suffix) - len(close_prefix))]
 
     return json.loads(json_str)
+
+def extract_boxed(response: str):
+
+    pattern = r"\\boxed{(.*)}"
+    match = re.search(pattern, response)
+    if match:
+        boxed_str = match.group(1).strip()
+        if boxed_str[0].isupper():
+            return boxed_str[0]
+        else:
+            raise ValueError(f'[Boxed Parse Error] Invalid boxed string: {boxed_str}')
+    else:
+        ValueError(f'[Boxed Parse Error] \\boxed not found. Invalid response: {response}')
     
 def read_criterias(metrics_dir: str):
 

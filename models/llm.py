@@ -14,9 +14,10 @@ except:
 
 class Base_LLM():
 
-    def __init__(self, model_name: str) -> None:
+    def __init__(self, model_name: str, model_name_client: str) -> None:
         
         self.model_name = model_name
+        self.model_name_client = model_name_client
         self.client = None
 
     def get_response(self, **kwargs) -> ChatCompletion:
@@ -32,11 +33,12 @@ class LLM_API(Base_LLM):
     def __init__(
         self,
         model_name: str,
+        model_name_client: str,
         api_key: str,
         base_url: str,
         price: dict
     ) -> None:
-        super().__init__(model_name)
+        super().__init__(model_name, model_name_client)
 
         self.client = OpenAI(
             api_key = api_key,
@@ -51,7 +53,7 @@ class LLM_API(Base_LLM):
     ) -> ChatCompletion:
 
         completion = self.client.chat.completions.create(
-            model = self.model_name,
+            model = self.model_name_client,
             messages = messages,
             **kwargs
         )

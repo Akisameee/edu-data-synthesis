@@ -129,7 +129,57 @@ if __name__ == '__main__':
             for scores in scores_list: scores.messages = messages
 
             try:
-                node = EvaluationAggregate(eval_model)
+                node = EvaluationAggregation(eval_model)
+                scores = node(scores_list, **eval_args)
+            except Exception as e:
+                print(str(e))
+                continue
+
+            eval_data = {
+                **gen_data,
+                'eval': eval_name,
+                'scores': scores.to_json()
+            }
+            eval_datas.append(eval_data)
+
+            eval_datas.sort(key = lambda d: int(d['id']))
+            write_jsonl(f'./eval_res/{gen_method}.jsonl', eval_datas)
+
+    for gen_data in tqdm(gen_datas):
+        for eval_model in eval_models:
+            # if eval_model.model_name == 'deepseek-r1': continue
+            
+            eval_name = f'voting-{eval_model.model_name}'
+            eval_datas = read_jsonl(f'./eval_res/{gen_method}.jsonl')
+            if any(
+                e_d['id'] == gen_data['id'] and e_d['eval'] == eval_name
+                for e_d in eval_datas
+            ): continue
+            eval_ress = [
+                e_d for e_d in eval_datas
+                if e_d['id'] == gen_data['id'] and e_d['eval'] in [
+                    m.model_name for m in eval_models
+                ]
+            ]
+            if len(eval_ress) != len(eval_models): continue
+
+            scenario = scenarios[gen_data['task']]
+            eval_args = {
+                'scenario': scenario,
+                'criteria': criterias[scenario['task']]
+            }
+            scores_list = [
+                EvalScores([
+                    EvalScore(**score)
+                    for score in eval_res['scores']
+                ])
+                for eval_res in eval_ress
+            ]
+            messages = Messages([Message(**message) for message in gen_data['message']])
+            for scores in scores_list: scores.messages = messages
+
+            try:
+                node = EvaluationVoting(eval_model)
                 scores = node(scores_list, **eval_args)
             except Exception as e:
                 print(str(e))

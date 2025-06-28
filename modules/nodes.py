@@ -1,5 +1,6 @@
 from tqdm import tqdm
 from copy import deepcopy
+import random
 import functools
 from typing import Literal, List, Dict, Generic, TypeVar, ClassVar
 from dataclasses import dataclass, field
@@ -271,7 +272,7 @@ class Evaluate(Node):
         scores.messages = messages
         return scores
     
-class EvaluationAggregate(Node):
+class EvaluationAggregation(Node):
     input_type = List[EvalScores]
     output_type = EvalScores
 
@@ -304,6 +305,39 @@ class EvaluationAggregate(Node):
         scores = EvalScores([EvalScore(**score) for score in scores])
         scores.messages = scores_list[0].messages
         return scores
+    
+class EvaluationVoting(Node):
+    input_type = List[EvalScores]
+    output_type = EvalScores
+
+    @retry(max_attempt = 3)
+    def __call__(
+        self,
+        scores_list: List[EvalScores],
+        **kwargs
+    ) -> EvalScores:
+        n_scores = len(scores_list)
+        if n_scores == 1:
+            return scores_list[0]
+        
+        assert all(scores.messages == scores_list[0].messages for scores in scores_list)
+        random.shuffle(scores_list)
+        scores_dict = {chr(65 + idx): scores for idx, scores in enumerate(scores_list)}
+
+        prompt = evaluation_voting_template.format(
+            scenario = kwargs['scenario'],
+            message = scores_list[0].messages.to_json(),
+            criteria = kwargs['criteria']
+        ) + '\n' + ''.join([f'{choice}. {scores.to_json()}\n' for choice, scores in scores_dict.items()])
+        
+        completion = self.llm.get_response(
+            messages = [{'role': 'user', 'content': prompt}, ]
+        )
+        self.llm.cost(completion)
+        response = completion.choices[0].message.content.strip()
+
+        choice = extract_boxed(response)
+        return scores_dict[choice]
     
 # class Review(Node):
 #     input_type = AssistantMessages
@@ -431,7 +465,7 @@ if __name__ == '__main__':
         print(scores.to_json())
         scores_list.append(scores)
 
-    node = EvaluationAggregate(models[0])
+    node = EvaluationAggregation(models[0])
     scores = node(scores_list, **test_args)
     print(scores.__class__)
     print(scores.to_json())
