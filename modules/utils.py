@@ -67,18 +67,16 @@ def extract_boxed(response: str):
     else:
         ValueError(f'[Boxed Parse Error] \\boxed not found. Invalid response: {response}')
     
-def read_criterias(metrics_dir: str):
+def read_criterias(metrics_dir: str, language: str):
 
-    with open(os.path.join(metrics_dir, 'evaluation_metrics_old.json'), 'r', encoding = 'utf-8') as file:
+    # with open(os.path.join(metrics_dir, 'evaluation_metrics_old.json'), 'r', encoding = 'utf-8') as file:
+    with open(os.path.join(metrics_dir, f'principles_{language}_whiten.json'), 'r', encoding = 'utf-8') as file:
         eval_metrics = json.load(file)
     with open(os.path.join(metrics_dir, 'metrics_map.json'), 'r', encoding = 'utf-8') as file:
         metrics_map = json.load(file)
 
     criterias = {
-        theme: [
-            eval_metrics[int(metric[0]) - 1]['sub_metrics'][int(metric[2]) - 1]
-            for metric in metrics
-        ]
+        theme: [eval_metrics[re.sub(r'\(.*\)', '', metric).strip()] for metric in metrics]
         for theme, metrics in metrics_map.items()
     }
 

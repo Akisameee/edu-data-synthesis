@@ -1,0 +1,134 @@
+{
+    "1.1 指令遵循与任务完成": {
+        "metric": "Instruction Following & Task Completion",
+        "description": "Did it fully understand and execute the user's instruction? Was the core task (e.g., solving problems, error correction, question generation) completed? Is the output formatting correct?",
+        "levels": [
+            "9-10: Fully understood and precisely executed all instructions; achieved core task with perfect accuracy; output format is fully compliant.",
+            "7-8: Accurately understood main instructions and correctly completed the task; core goals are well achieved; format is mostly correct with only minor omissions or deviations.",
+            "5-6: Understood the general intent but may miss some details; task largely completed but with some inaccuracies or omissions; formatting attempts present but with notable flaws.",
+            "3-4: Misunderstood part of the instruction; low task completion or major errors; formatting mostly incorrect.",
+            "1-2: Completely misunderstood or ignored instructions; task not completed or totally incorrect; formatting is chaotic or irrelevant."
+        ]
+    },
+    "1.2 角色与口吻一致性": {
+        "metric": "Role & Tone Consistency",
+        "description": "Does the language style, tone, and level of professionalism match the assigned role (e.g., teacher, teaching assistant, peer) and the target learner group (e.g., elementary, college)?",
+        "levels": [
+            "9-10: Excellent role-playing (e.g., teacher/TA); language style, professionalism, and tone (e.g., encouraging/serious) are perfectly aligned with the assumed role and audience.",
+            "7-8: Role and tone are mostly consistent and appropriate for the scenario, with minor deviation in individual expressions.",
+            "5-6: Attempts to match the role and tone can be seen, but overall consistency is weak; some expressions are disconnected from the role/scenario.",
+            "3-4: Significant mismatch in role and tone; comes across as unnatural or inconsistent.",
+            "1-2: No reflection of assigned role/tone; expression entirely inconsistent with the scenario."
+        ]
+    },
+    "1.3 内容相关性与范围控制": {
+        "metric": "Content Relevance & Scope Control",
+        "description": "Is the content tightly aligned with the specified topic, theme, or question? Is it kept within the specified difficulty level, domain, or scope?",
+        "levels": [
+            "9-10: Content is highly relevant to the specified topic/theme/question; strictly within required difficulty/scope/discipline without redundant or irrelevant information.",
+            "7-8: Overall relevance is high; scope control is good with possibly a small amount of slightly off-topic or mildly overreaching information.",
+            "5-6: Mostly relevant, but includes some off-topic or out-of-scope content; scope control needs improvement.",
+            "3-4: Poor relevance; includes a significant amount of irrelevant information or is largely outside scope.",
+            "1-2: Content is largely irrelevant or completely outside the specified scope."
+        ]
+    },
+    "1.4 场景要素融合度": {
+        "metric": "Scenario Element Integration",
+        "description": "Did it effectively use scenario-specific information (e.g., previous student answers, learning preferences, specific teaching goals)? Especially important in personalized, Q&A, or error-correction contexts.",
+        "levels": [
+            "9-10: Fully integrated all key scenario elements (e.g., student history, learning preferences); output is highly personalized and well-matched to the teaching context.",
+            "7-8: Used major scenario elements effectively; response is targeted, possibly overlooks minor details but does not affect overall results.",
+            "5-6: Some use of scenario information, but integration is shallow; personalization or contextual fit is average.",
+            "3-4: Only surface-level reference to scenario information; did not integrate core elements effectively; weak contextual connection.",
+            "1-2: Completely ignored scenario-specific information; output is generic, templated, and irrelevant to the scenario."
+        ]
+    },
+    "2.1 基础事实准确性": {
+        "metric": "Basic Factual Accuracy",
+        "description": "Are objective facts such as concept definitions, formulas, dates, terminology, code syntax, legal clauses correctly presented?",
+        "levels": [
+            "9-10: All stated factual elements (definitions, formulas, dates, terms, syntax, etc.) are completely accurate.",
+            "7-8: Vast majority of facts are correct; possibly contains very minor, non-critical typos or omissions.",
+            "5-6: Most facts are correct, but there are some notable factual errors that require review.",
+            "3-4: Contains several or key factual inaccuracies; information is not trustworthy.",
+            "1-2: Riddled with factual errors; information is completely incorrect or misleading."
+        ]
+    },
+    "2.2 领域知识专业性": {
+        "metric": "Domain Knowledge Accuracy",
+        "description": "Is the use of subject matter knowledge (math, programming, law, finance, etc.) not only correct but also appropriately specialized and aligned with domain standards?",
+        "levels": [
+            "9-10: Subject matter application is not only accurate but also shows appropriate depth and rigor; adheres to industry or academic standards.",
+            "7-8: Proper use of professional knowledge reflecting a good degree of proficiency; minor shortcomings in depth or detail not affecting validity.",
+            "5-6: Basic accuracy in subject knowledge, but somewhat surface-level or lacking rigor; some confusion or omissions of non-core concepts.",
+            "3-4: Significant errors or major omission in subject-specific content; lacks professionalism.",
+            "1-2: Serious domain errors; completely incorrect or misleading; does not meet any professional standards."
+        ]
+    },
+    "2.3 推理过程严谨性": {
+        "metric": "Reasoning Process Rigor",
+        "description": "For content requiring reasoning (e.g., math steps, code logic, legal arguments, case analysis), is the logical flow complete and sound?",
+        "levels": [
+            "9-10: Reasoning is complete, clear, and rigorous; all steps are correct; arguments are strong and free of logical fallacies.",
+            "7-8: Reasoning is largely correct and logically coherent with minor issues in individual steps or details that do not affect the conclusion.",
+            "5-6: Reasoning is visible but contains unclear logic, missing steps, or insufficient argumentation, affecting the overall outcome.",
+            "3-4: Reasoning has major logical flaws, confusion in steps, or critical omissions; reliability is low.",
+            "1-2: Virtually no valid reasoning; logic is chaotic; steps are incorrect or irrelevant."
+        ]
+    },
+    "2.4 错误识别与纠正精确性": {
+        "metric": "Error Identification & Correction Precision",
+        "description": "In error correction scenarios, are errors precisely identified (no missed or false positives)? Are the corrections correct and optimal?",
+        "levels": [
+            "9-10: Precisely identified all errors (no omission or false positives); provided completely correct, clear, and optimal correction suggestions.",
+            "7-8: Correctly located most major errors; suggestions are generally accurate and effective with only minor omissions or less-than-perfect advice.",
+            "5-6: Identified some errors but with clear omissions or false positives; suggestions are partially correct but may lack clarity, completeness or optimality.",
+            "3-4: Inaccurate error detection with critical omissions or many false positives; suggestions contain errors or are hard to comprehend.",
+            "1-2: Completely failed to detect errors; provided entirely incorrect or misleading correction advice."
+        ]
+    },
+    "3.1 清晰易懂与表达启发": {
+        "metric": "Clarity, Simplicity & Inspiration",
+        "description": "Are explanations, descriptions, and feedback clear, concise, and easy for the target learners to understand? Is the delivery inspiring and thought-provoking?",
+        "levels": [
+            "9-10: Extremely clear and concise explanations; fully accessible for target learners; vibrant and engaging delivery that inspires deep thought and interest.",
+            "7-8: Clear and easy to understand; appropriate for learner level; somewhat thought-provoking and can trigger reflection.",
+            "5-6: Generally understandable but may be wordy, complex, or dull; limited inspirational impact.",
+            "3-4: Lacks clarity; uses excessive jargon or complex structures; difficult to comprehend; uninspiring.",
+            "1-2: Confusing and hard to follow; disregards learner needs; offers no inspiration and may cause confusion."
+        ]
+    },
+    "3.2 激励引导与积极反馈": {
+        "metric": "Motivation, Guidance & Positive Feedback",
+        "description": "Does the interaction provide encouragement and support? Is constructive and positive language used? In answering or tutoring, does it guide thinking or just give away answers?",
+        "levels": [
+            "9-10: Strongly supportive and encouraging; consistently uses constructive and positive language; offers highly effective heuristic guidance instead of simply giving answers.",
+            "7-8: Generally supportive tone and positive language; provides useful guidance though occasionally too direct.",
+            "5-6: A mix of encouragement and neutral/critical language; guidance is inconsistent\u2014sometimes helpful, sometimes overly direct or lacking.",
+            "3-4: Lacks encouragement and support; language is neutral or mildly negative; rarely guides, often just answers or remains unhelpful.",
+            "1-2: Negative or discouraging tone; no motivation or support; fails to guide or gives misleading suggestions."
+        ]
+    },
+    "3.3 个性化适应与学习支持": {
+        "metric": "Personalization, Adaptation & Learning Support",
+        "description": "Can it provide differentiated content, advice, or feedback based on a student's level, traits, or needs? Does it recommend effective learning paths or resources?",
+        "levels": [
+            "9-10: Highly personalized content/advice/feedback based on student level/traits/needs; resource and learning path suggestions are accurate, practical, and valuable.",
+            "7-8: Demonstrates some adaptation to student situation; provides relevant learning advice or resources with good utility.",
+            "5-6: Attempts personalization but with limited effectiveness; recommendations are generic and of limited value.",
+            "3-4: Little to no personalization; output is the same for everyone; learning support is insufficient or unrelated.",
+            "1-2: No personalization; output may conflict with student needs; offers no or incorrect learning support."
+        ]
+    },
+    "3.4 促进高阶思维与能力发展": {
+        "metric": "Higher-Order Thinking & Skill Development",
+        "description": "Does the interaction or content help foster students\u2019 critical thinking, creativity, problem-solving, or knowledge transfer skills?",
+        "levels": [
+            "9-10: Skillfully designed to promote critical/creative thinking, problem-solving, or transfer of knowledge (e.g., through open-ended questions, comparative analysis, case study, project-based tasks).",
+            "7-8: Includes guiding questions or moderately challenging tasks that positively support the development of higher-order thinking (e.g., analysis, evaluation, application).",
+            "5-6: Some attempt to encourage higher-order thinking (e.g., simple reflective questions), but limited in depth and scope; mainly focused on rote understanding or basic application.",
+            "3-4: Interaction/content mostly revolves around memory and comprehension; rarely addresses higher-order thinking tasks.",
+            "1-2: Completely ignores higher-order skill development; encourages rote memorization and repetition; may inhibit thinking flexibility."
+        ]
+    }
+}
