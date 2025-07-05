@@ -67,10 +67,11 @@ if __name__ == '__main__':
     model_locks = {model.model_name: threading.Lock() for model in eval_models}  # 每个模型一个锁
 
     def process_task(gen_data, eval_model, gen_method):
+        eval_name = f'single-{eval_model.model_name}'
         # 检查是否已存在评估结果 (需要文件锁)
         with file_lock:
             eval_datas = read_jsonl(f'./eval_res/{gen_method}.jsonl')
-            if any(e_d['id'] == gen_data['id'] and e_d['eval'] == eval_model.model_name for e_d in eval_datas):
+            if any(e_d['id'] == gen_data['id'] and e_d['eval'] == eval_name for e_d in eval_datas):
                 return  # 已存在则跳过
 
         # 准备评估参数 (不需要锁)
@@ -84,7 +85,7 @@ if __name__ == '__main__':
         # 使用模型特定的锁执行评估 (防止同一模型并发调用)
         try:
             with model_locks[eval_model.model_name]:
-                node = Evaluate(eval_model)
+                node = EvaluateSingle(eval_model)
                 scores = node(messages, **eval_args)
         except Exception as e:
             print(f"Error evaluating {gen_data['id']} with {eval_model.model_name}: {str(e)}")
@@ -93,14 +94,14 @@ if __name__ == '__main__':
         # 保存结果 (需要文件锁)
         eval_data = {
             **gen_data,
-            'eval': eval_model.model_name,
+            'eval': eval_name,
             'scores': scores.to_json()
         }
         
         with file_lock:
             # 再次检查避免其他线程已写入相同结果
             eval_datas = read_jsonl(f'./eval_res/{gen_method}.jsonl')
-            if any(e_d['id'] == gen_data['id'] and e_d['eval'] == eval_model.model_name for e_d in eval_datas):
+            if any(e_d['id'] == gen_data['id'] and e_d['eval'] == eval_name for e_d in eval_datas):
                 return
             
             eval_datas.append(eval_data)
@@ -111,8 +112,9 @@ if __name__ == '__main__':
     tasks = []
     for gen_data in gen_datas:
         for eval_model in eval_models:
+            eval_name = f'single-{eval_model.model_name}'
             eval_datas = read_jsonl(f'./eval_res/{gen_method}.jsonl')
-            if any(e_d['id'] == gen_data['id'] and e_d['eval'] == eval_model.model_name for e_d in eval_datas):
+            if any(e_d['id'] == gen_data['id'] and e_d['eval'] == eval_name for e_d in eval_datas):
                 continue
             tasks.append((gen_data, eval_model))
 

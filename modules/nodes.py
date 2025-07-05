@@ -245,7 +245,7 @@ class Evaluate(Node):
             raise ValueError(f'[Score Parse Error] Invalid criteria: {invalid_criteria}, required: {required_criteria}.')
         
         return scores
-
+    
     @retry(max_attempt = 3)
     def __call__(
         self,
@@ -268,6 +268,38 @@ class Evaluate(Node):
 
         scores = extract_json(response)
         self.check_scores(scores, kwargs['criteria'])
+        scores = EvalScores([EvalScore(**score) for score in scores])
+        scores.messages = messages
+        return scores
+
+class EvaluateSingle(Node):
+    input_type = AssistantMessages
+    output_type = EvalScores
+
+    @retry(max_attempt = 3)
+    def __call__(
+        self,
+        messages: AssistantMessages,
+        **kwargs
+    ) -> EvalScores:
+
+        scores = []
+        for criterion in kwargs['criteria']:
+            prompt = evaluation_single_template.format(
+                scenario = kwargs['scenario'],
+                message = messages.to_json(),
+                criterion = criterion
+            )
+
+            completion = self.llm.get_response(
+                messages = [{'role': 'user', 'content': prompt}, ],
+                temperature = 0.0
+            )
+            self.llm.cost(completion)
+            response = completion.choices[0].message.content.strip()
+            scores.append(extract_json(response))
+
+        Evaluate.check_scores(scores, kwargs['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
         scores.messages = messages
         return scores

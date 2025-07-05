@@ -35,6 +35,21 @@ evaluation_template = \
 {criteria}
 '''
 
+evaluation_single_template = \
+'''
+你是一名数据评分员，我将向你提供一段教育领域下特定场景的对话，请你根据所给定的评估指标及其评分细则对所给的回答进行评分并给出原因。
+请按照评估指标中的评分细则严格地进行评分，给出的原因需要结合对话原文具体说明满足了评分指标的哪一条。
+以JSON的格式返回，例如：
+```json{{"criterion": "<评估指标1名称>", "score": <得分>, "reason": <原因>}}```
+
+场景：
+{scenario}
+对话：
+{message}
+评估指标: 
+{criterion}
+'''
+
 review_template = \
 '''
 我将向你提供一段教育领域下特定场景的对话，请根据所给定的所有评估指标及其评分细则对这段对话的assistant提出改进意见。
