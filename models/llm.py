@@ -4,23 +4,27 @@ import json
 from openai import OpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 try:
     from vllm import LLM
     from vllm import SamplingParams
-
-    print(torch.cuda.device_count())
 except:
     pass
 
+print(f'cuda devices: {torch.cuda.device_count()}')
+
 class Base_LLM():
 
-    def __init__(self, model_name: str, model_name_client: str) -> None:
+    def __init__(self, model_name: str) -> None:
         
         self.model_name = model_name
-        self.model_name_client = model_name_client
         self.client = None
 
     def get_response(self, **kwargs) -> ChatCompletion:
+
+        raise NotImplementedError
+
+    def get_reward(self, **kwargs) -> int:
 
         raise NotImplementedError
     
@@ -38,13 +42,16 @@ class LLM_API(Base_LLM):
         base_url: str,
         price: dict
     ) -> None:
-        super().__init__(model_name, model_name_client)
+        super().__init__(model_name)
 
+        self.model_name_client = model_name_client
+        self.api_key = api_key
+        self.base_url = base_url
+        self.price = price
         self.client = OpenAI(
             api_key = api_key,
             base_url = base_url
         )
-        self.price = price
 
     def get_response(
         self,
@@ -123,6 +130,46 @@ class LLM_VLLM(Base_LLM):
         )
 
         return completion
+    
+    def cost(self, completion: ChatCompletion, **kwargs) -> float:
+
+        return 0
+    
+class RM_HF(Base_LLM):
+
+    def __init__(
+        self,
+        model_name: str,
+        model_path: str,
+        **kwargs
+    ) -> None:
+        super().__init__(model_name)
+
+        self.device = 'cuda'
+        self.llm = AutoModelForSequenceClassification.from_pretrained(
+            model_path,
+            torch_dtype=torch.bfloat16,
+            device_map='auto',
+            # attn_implementation="flash_attention_2",
+            num_labels=1,
+        )
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+    
+    @torch.no_grad()
+    def get_reward(
+        self,
+        messages: list,
+        **kwargs
+    ) -> int:
+
+        messages_formatted = self.tokenizer.apply_chat_template(messages, tokenize=False)
+        if self.tokenizer.bos_token is not None and messages_formatted.startswith(self.tokenizer.bos_token):
+            messages_formatted = messages_formatted[len(self.tokenizer.bos_token):]
+        inputs = self.tokenizer(messages_formatted, return_tensors="pt").to(self.device)
+
+        score = self.llm(**inputs, **kwargs).logits[0][0].item()
+
+        return score
     
     def cost(self, completion: ChatCompletion, **kwargs) -> float:
 

@@ -24,7 +24,7 @@ evaluation_template = \
 '''
 你是一名数据评分员，我将向你提供一段教育领域下特定场景的对话，请你根据所给定的所有评估指标及其评分细则对所给的回答进行评分并给出原因。
 请按照每个评估指标中的评分细则严格地进行评分，给出的原因需要结合对话原文具体说明满足了评分指标的哪一条。
-以JSON的格式返回，例如：
+最终结果以JSON的格式返回，例如：
 ```json[{{"criterion": "<评估指标1名称>", "score": <得分>, "reason": <原因>}}, {{"criterion": "<评估指标2名称>", "score": <得分>, "reason": <原因>}}, ...]```
 
 场景：
@@ -33,6 +33,26 @@ evaluation_template = \
 {message}
 评估指标: 
 {criteria}
+'''
+
+evaluation_cl_template = \
+'''
+你是一名数据评分员，我将向你提供一段教育领域下特定场景的对话，请你根据所给定的所有评估指标及其评分细则对所给的回答进行评分并给出原因。
+请参考评估样例的打分，按照每个评估指标中的评分细则严格地进行评分，给出的原因需要结合对话原文具体说明满足了评分指标的哪一条。
+以JSON的格式返回，例如：
+```json[{{"criterion": "<评估指标1名称>", "score": <得分>, "reason": <原因>}}, {{"criterion": "<评估指标2名称>", "score": <得分>, "reason": <原因>}}, ...]```
+
+场景：
+{scenario}
+
+评估指标: 
+{criteria}
+
+评估样例：
+{samples}
+
+对话：
+{message}
 '''
 
 evaluation_single_template = \
@@ -121,6 +141,17 @@ evaluation_voting_template = \
 评估指标：
 {criteria}
 评分：
+'''
+
+debate_template = \
+'''
+Contexts: 
+{contexts}
+Your response: 
+{self_response}
+Reponses from other agents: 
+{other_responses}
+Use opinions from other agents carefully as additional advice, provide an updated answer with same format.
 '''
 
 planning_template = \

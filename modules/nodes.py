@@ -6,9 +6,11 @@ from typing import Literal, List, Dict, Generic, TypeVar, ClassVar
 from dataclasses import dataclass, field
 
 import sys
+
+from models import Base_LLM
 sys.path.insert(0, '.')
 
-from models import Base_LLM, get_model
+from models import *
 from modules.state import SynthesisState
 from modules.prompt_templates import *
 from modules.utils import *
@@ -25,6 +27,7 @@ class GenericList(Generic[T]):
     def pop(self, idx: int = -1) -> T: return self._items.pop(idx)
     def to_json(self) -> list: return [_item.__dict__ for _item in self._items]
     def __eq__(self, other: 'GenericList[T]'): return all(a == b for a, b in zip(self._items, other._items))
+    def __add__(self, other: 'GenericList[T]'): return GenericList(self._items + other._items)
 
 @dataclass
 class Message:
@@ -32,6 +35,7 @@ class Message:
     content: str
 
 class Messages(GenericList[Message]):
+    source: Base_LLM = None
     ROLE_TO_CLASS: ClassVar[dict] = {}
 
     def __init__(self, messages: List[Message]):
@@ -77,23 +81,66 @@ Messages.ROLE_TO_CLASS = {
 @dataclass
 class EvalScore:
     criterion: str
-    score: int
+    score: int | float
     reason: str
 
 class EvalScores(GenericList[EvalScore]):
+    source: Base_LLM = None
     messages: Messages = None
 
+    def sum(self) -> float:
+        return sum([score.score for score in self._items])
+
+    def get_score(self, criterion: str) -> Optional[EvalScore]:
+        for score in self._items:
+            if score.criterion == criterion:
+                return score
+        return None
+
+    def update(self, other: 'EvalScores') -> None:
+        criterion_idxs = {scores.criterion: idx for idx, scores in enumerate(self._items)}
+        for scores in other:
+            if scores.criterion in criterion_idxs:
+                self._items[criterion_idxs[scores.criterion]] = scores
+            else:
+                self.append(scores)
+
 class Node():
-    parents = []
-    children = []
+    parents: List['Node']
+    children: List['Node']
     input_type = None
     output_type = None
+    max_indegree = None
 
     def __init__(self, llm: Base_LLM = None) -> None:
+        self.parents = []
+        self.children = []
         self.llm = llm
+        self.history = {}
+
+    def run(self, **kwargs) -> Any:
+        
+        if len(self.parents) == 0:
+            return self.__call__(**kwargs)
+        else:
+            if self.max_indegree is None or self.max_indegree > 1:
+                assert all(isinstance(p, Node) for p in self.parents)
+                node_input = [parent.run(**kwargs) for parent in self.parents]
+                return self.__call__(node_input, **kwargs)
+            elif self.max_indegree == 1:
+                node_input = self.parents[0].run(**kwargs)
+                return self.__call__(node_input, **kwargs)
+            else:
+                raise ValueError('Invalid parent')
+        
+    def __call__(self, **kwargs) -> Any:
+        pass
     
 class SystemGenerate(Node):
     output_type = SystemMessages
+
+    def __init__(self, llm: Base_LLM = None) -> None:
+        super().__init__(llm)
 
     def __call__(
         self,
@@ -109,6 +156,9 @@ class SystemGenerate(Node):
 class UserGenerate(Node):
     input_type = (SystemMessages, AssistantMessages)
     output_type = UserMessages
+
+    def __init__(self, llm: Base_LLM = None) -> None:
+        super().__init__(llm)
 
     @staticmethod
     def replace_meta_data(content: str, meta_data: str):
@@ -155,6 +205,9 @@ class AssistantGenerate(Node):
     input_type = UserMessages
     output_type = AssistantMessages
 
+    def __init__(self, llm: Base_LLM = None) -> None:
+        super().__init__(llm)
+
     @retry(max_attempt = 3)
     def __call__(
         self,
@@ -175,6 +228,9 @@ class AssistantGenerate(Node):
 class ResponseAggregate(Node):
     input_type = List[AssistantMessages]
     output_type = AssistantMessages
+
+    def __init__(self, llm: Base_LLM = None) -> None:
+        super().__init__(llm)
 
     @retry(max_attempt = 3)
     def __call__(
@@ -217,6 +273,7 @@ class ResponseAggregate(Node):
 class Evaluate(Node):
     input_type = AssistantMessages
     output_type = EvalScores
+    max_indegree = 1
 
     @staticmethod
     def check_scores(scores: list, criteria: list):
@@ -252,12 +309,17 @@ class Evaluate(Node):
         messages: AssistantMessages,
         **kwargs
     ) -> EvalScores:
-
+        # AI_EVALUATOR_PROMPT_ZH
         prompt = evaluation_template.format(
             scenario = kwargs['scenario'],
             message = messages.to_json(),
             criteria = kwargs['criteria']
         )
+        # prompt = AI_EVALUATOR_PROMPT_ZH.format(
+        #     scenario = kwargs['scenario'],
+        #     message = messages.to_json(),
+        #     criteria = kwargs['criteria']
+        # )
 
         completion = self.llm.get_response(
             messages = [{'role': 'user', 'content': prompt}, ],
@@ -269,12 +331,58 @@ class Evaluate(Node):
         scores = extract_json(response)
         self.check_scores(scores, kwargs['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
+        scores.source = self.llm
         scores.messages = messages
         return scores
-
-class EvaluateSingle(Node):
+    
+class EvaluateICL(Node):
     input_type = AssistantMessages
     output_type = EvalScores
+    max_indegree = 1
+
+    def __init__(self, llm: Base_LLM = None) -> None:
+        super().__init__(llm)
+        eval_samples = read_jsonl('./eval_res/eval_samples.jsonl')
+        sub_eval_samples = read_jsonl('./eval_res/sub_eval_samples.jsonl')
+        sub_eval_sample_ids = [s['id'] for s in sub_eval_samples]
+        self.samples = [s for s in eval_samples if s['id'] not in sub_eval_sample_ids]
+
+    def get_human_eval_sample(self, task: str, id: str, count: int = 2):
+        
+        def get_qid(id: str):
+            return '_'.join(id.split('_')[:3])
+        
+        filtered_samples = [
+            s for s in self.samples
+            if get_qid(s['id']) != id and s['task'] == task
+        ]
+
+        formatted_samples = []
+        for sample in filtered_samples:
+            if get_qid(sample['id']) not in [get_qid(s['id']) for s in formatted_samples]:
+                formatted_samples.append({
+                    'id': sample['id'],
+                    'messages': Messages([Message(**message) for message in sample['message']]),
+                    'scores': EvalScores([EvalScore(**score) for score in sample['scores']])
+                })
+
+        formatted_samples.sort(key = lambda s: s['scores'].sum())
+        # points = [0.333, 0.666]
+        # points = [0, 0.333]
+        # points = [0.666, 1]
+        points = [0, 1]
+
+        def get_sample_point(samples, ratio):
+            return samples[round((len(samples) - 1) * ratio)]
+
+        text_samples = ''
+        for idx, point in enumerate(points):
+            sample = get_sample_point(formatted_samples, point)
+            text_samples += f"样例{idx + 1}对话：{sample['messages'].to_json()}\n"
+            text_samples += f"样例{idx + 1}评估结果：{sample['scores'].to_json()}\n"
+        text_samples += '\n'
+
+        return text_samples
 
     @retry(max_attempt = 3)
     def __call__(
@@ -283,6 +391,53 @@ class EvaluateSingle(Node):
         **kwargs
     ) -> EvalScores:
 
+        prompt = evaluation_cl_template.format(
+            scenario = kwargs['scenario'],
+            message = messages.to_json(),
+            criteria = kwargs['criteria'],
+            samples = self.get_human_eval_sample(
+                kwargs['task'],
+                kwargs['id']
+            )
+        )
+
+        completion = self.llm.get_response(
+            messages = [{'role': 'user', 'content': prompt}, ],
+            temperature = 0.0
+        )
+        self.llm.cost(completion)
+        response = completion.choices[0].message.content.strip()
+
+        scores = extract_json(response)
+        Evaluate.check_scores(scores, kwargs['criteria'])
+        scores = EvalScores([EvalScore(**score) for score in scores])
+        scores.source = self.llm
+        scores.messages = messages
+        return scores
+
+
+class EvaluateSingle(Node):
+    input_type = AssistantMessages
+    output_type = EvalScores
+    max_indegree = 1
+
+    @retry(max_attempt = 3)
+    def __call__(
+        self,
+        messages: AssistantMessages,
+        **kwargs
+    ) -> EvalScores:
+
+        if isinstance(self.llm, (LLM_API, LLM_VLLM)):
+            return self._call_llm_api(messages, **kwargs)
+        elif isinstance(self.llm, RM_HF):
+            return self._call_rm_hf(messages, **kwargs)
+    
+    def _call_llm_api(
+        self,
+        messages: AssistantMessages,
+        **kwargs
+    ) -> EvalScores:
         scores = []
         for criterion in kwargs['criteria']:
             prompt = evaluation_single_template.format(
@@ -301,12 +456,51 @@ class EvaluateSingle(Node):
 
         Evaluate.check_scores(scores, kwargs['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
+        scores.source = self.llm
+        scores.messages = messages
+        return scores
+    
+    def _call_rm_hf(
+        self,
+        messages: AssistantMessages,
+        **kwargs
+    ) -> EvalScores:
+        scores = []
+        for criterion in kwargs['criteria']:
+            prompt = evaluation_single_template.format(
+                scenario = kwargs['scenario'],
+                message = messages.to_json(),
+                criterion = criterion
+            )
+
+            rewards = []
+            for score in range(10):
+                response_template = '```json{{"criterion": "{criterion_name}", "score": {score}, "reason": "{reason}"}}```'
+                response = response_template.format(
+                    criterion_name = criterion['metric'],
+                    score = str(score + 1),
+                    reason = criterion['levels'][-(int(score / 2) + 1)]
+                )
+                reward = self.llm.get_reward(
+                    messages = [{'role': 'user', 'content': prompt}, {'role': 'assistant', 'content': response}]
+                )
+                rewards.append({
+                    'reward': reward,
+                    'response': extract_json(response)
+                })
+            rewards.sort(key = lambda r: r['reward'], reverse = True)
+            scores.append(rewards[0]['response'])
+
+        Evaluate.check_scores(scores, kwargs['criteria'])
+        scores = EvalScores([EvalScore(**score) for score in scores])
+        scores.source = self.llm
         scores.messages = messages
         return scores
     
 class EvaluationAggregation(Node):
     input_type = List[EvalScores]
     output_type = EvalScores
+    max_indegree = None
 
     @retry(max_attempt = 3)
     def __call__(
@@ -335,12 +529,14 @@ class EvaluationAggregation(Node):
         scores = extract_json(response)
         Evaluate.check_scores(scores, kwargs['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
+        scores.source = self.llm
         scores.messages = scores_list[0].messages
         return scores
     
 class EvaluationVoting(Node):
     input_type = List[EvalScores]
     output_type = EvalScores
+    max_indegree = None
 
     @retry(max_attempt = 3)
     def __call__(
@@ -369,7 +565,74 @@ class EvaluationVoting(Node):
         response = completion.choices[0].message.content.strip()
 
         choice = extract_boxed(response)
-        return scores_dict[choice]
+        scores = scores_dict[choice]
+        scores.source = self.llm
+        return scores
+    
+class Debate(Node):
+    input_type = List[EvalScores] | List[Messages]
+    output_type = List[EvalScores] | List[Messages]
+    max_indegree = None
+    
+    def __init__(self, llm: Base_LLM = None) -> None:
+        super().__init__(llm)
+
+    @retry(max_attempt = 3)
+    def __call__(
+        self,
+        response_list: List[EvalScores] | List[Messages],
+        n_round: int = 1,
+        **kwargs
+    ) -> List[EvalScores] | List[Messages]:
+        n_response = len(response_list)
+        if n_response == 1:
+            return response_list
+        
+        if isinstance(response_list[0], EvalScores):
+            assert all(scores.messages == response_list[0].messages for scores in response_list)
+            contexts = evaluation_template.format(
+                scenario = kwargs['scenario'],
+                message = response_list[0].messages.to_json(),
+                criteria = kwargs['criteria']
+            )
+        elif isinstance(response_list[0], Messages):
+            assert all(messages[:-1] == response_list[0][:-1] for messages in response_list)
+            contexts = response_list[0][:-1].to_json()
+
+        for round in range(n_round):
+            for idx in range(len(response_list)):
+                response = response_list[idx]
+                # print(response_list[idx].to_json())
+                if isinstance(response, EvalScores):
+                    self_response = response.to_json()
+                    other_responses = response_list[:idx] + response_list[idx + 1:]
+                    other_responses = '\n'.join(
+                        [json.dumps(r.to_json(), ensure_ascii = False) for r in other_responses]
+                    )
+                elif isinstance(response, Messages):
+                    pass
+
+                prompt = debate_template.format(
+                    contexts = contexts,
+                    self_response = self_response,
+                    other_responses = other_responses
+                )
+                llm = response.source
+                completion = response.source.get_response(
+                    messages = [{'role': 'user', 'content': prompt}, ]
+                )
+                response.source.cost(completion)
+                response_json = extract_json(completion.choices[0].message.content.strip())
+                if isinstance(response, EvalScores):
+                    Evaluate.check_scores(response_json, kwargs['criteria'])
+                    response_list[idx] = EvalScores([EvalScore(**score) for score in response_json])
+                    response_list[idx].source = response.source
+                    response_list[idx].messages = response.messages
+                elif isinstance(response, Messages):
+                    pass
+                # print(response_list[idx].to_json())
+            
+        return response_list
     
 # class Review(Node):
 #     input_type = AssistantMessages
@@ -453,14 +716,19 @@ class Refine(Node):
         return state
     
 class Output(Node):
-    input_type = AssistantMessages
-    output_type = AssistantMessages
+    input_type = AssistantMessages | EvalScores
+    output_type = AssistantMessages | EvalScores
+    max_indegree = 1
+
+    def __init__(self) -> None:
+        super().__init__(None)
 
     def __call__(
         self,
-        message: AssistantMessages
-    ) -> AssistantMessages:
-        return message
+        output: AssistantMessages | EvalScores,
+        **kwargs
+    ) -> AssistantMessages | EvalScores:
+        return output
     
 if __name__ == '__main__':
 
