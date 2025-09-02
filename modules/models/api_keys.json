@@ -1,0 +1,14 @@
+{
+    "chatanywhere": {
+        "api_key": "sk-s17gKfBLOAaXHFKGGGF4u4iPVHXicKWtLJqvROqltd17XwLR",
+        "base_url": "https://api.chatanywhere.tech/v1"
+    },
+    "siliconflow": {
+        "api_key": "sk-mjhmhbeyvvcnlbcyvrxqycxyajddvzzjqngqsdulperonmlz",
+        "base_url": "https://api.siliconflow.cn/v1"
+    },
+    "aliyuncs": {
+        "api_key": "sk-d26f44789140496aa13d4e01def9d5c4",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    }
+}

@@ -1,7 +1,7 @@
 import torch
 import os
 import json
-from openai import OpenAI
+from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -20,7 +20,7 @@ class Base_LLM():
         self.model_name = model_name
         self.client = None
 
-    def get_response(self, **kwargs) -> ChatCompletion:
+    async def get_response(self, **kwargs) -> ChatCompletion:
 
         raise NotImplementedError
 
@@ -48,18 +48,18 @@ class LLM_API(Base_LLM):
         self.api_key = api_key
         self.base_url = base_url
         self.price = price
-        self.client = OpenAI(
+        self.client = AsyncOpenAI(
             api_key = api_key,
             base_url = base_url
         )
 
-    def get_response(
+    async def get_response(
         self,
         messages: list,
         **kwargs
     ) -> ChatCompletion:
 
-        completion = self.client.chat.completions.create(
+        completion = await self.client.chat.completions.create(
             model = self.model_name_client,
             messages = messages,
             **kwargs
@@ -101,7 +101,7 @@ class LLM_VLLM(Base_LLM):
         )
 
     @torch.no_grad()
-    def get_response(
+    async def get_response(
         self,
         messages: list,
         **kwargs

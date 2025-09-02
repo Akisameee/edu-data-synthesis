@@ -7,12 +7,11 @@ import sys
 sys.path.insert(0, '.')
 
 from data.utils import yield_json_files
-from modules.actions import Action
 
 levels = ['primary', 'junior', 'senior', 'undergraduate', 'graduate']
 subjects = ['computer_science', 'chemistry', 'history', 'geography', 'math', 'physics', 'biology', 'science', 'english', 'chinese', 'political_science']
 
-class SampleQuestion(Action):
+class SampleQuestion():
 
     required_keys = []
     description = 'Randomly sample question data from an external dataset based on level, subject, and question type, with each data point being sampled only once'

@@ -139,6 +139,7 @@ def read_sampled_data(language: str):
 
 def retry(
     max_attempt: int = 3,
+    verbose: bool = False
 ):
     def decorator(func):
         @functools.wraps(func)
@@ -149,7 +150,8 @@ def retry(
                     return func(*args, **kwargs)
                 except Exception as e:
                     n_attempt += 1
-                    tqdm.write(f"Attempt {n_attempt} failed: {e}")
+                    if verbose:
+                        tqdm.write(f"Attempt {n_attempt} failed: {e}")
                     if n_attempt == max_attempt:
                         raise e
         return wrapper

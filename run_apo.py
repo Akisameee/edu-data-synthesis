@@ -4,11 +4,8 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '6,7'
 import dspy
 from dspy.datasets import HotPotQA
 
-from models import Base_LLM, get_model
-from modules.nodes import *
+from modules.models import Base_LLM, get_model
 from modules.workflow import *
-from modules.prompt_templates import *
-from modules.utils import *
 
 def evaluation_metric(data, result, trace=None):
     scores_labels = data._store['answer']
@@ -25,6 +22,7 @@ def evaluation_metric(data, result, trace=None):
         scores_flatten_predicts: List[float] = []
         if scores_label is None or scores_predict is None:
             continue
+        scores_label = EvalScores([EvalScore(**score) for score in scores_label])
         criteria = {s.criterion for s in scores_label} & {s.criterion for s in scores_predict}
         for criterion in criteria:
             scores_flatten_labels.append(scores_label.get_score(criterion).score)
@@ -37,7 +35,7 @@ def evaluation_metric(data, result, trace=None):
     print(corrs)
     return max([corr for eval, corr in corrs.items()])
 
-def perpare_train_datas():
+def perpare_datas():
 
     language = 'zh'
     scenarios = read_scenarios('./data/scenario', language)
@@ -45,16 +43,21 @@ def perpare_train_datas():
 
     sub_eval_datas = read_jsonl(f'./eval_res/sub_eval_samples.jsonl')
     eval_datas = read_jsonl(f'./eval_res/eval_samples.jsonl')
-    eval_datas = [
-        data for data in eval_datas
-        if data['id'] not in [s_data['id'] for s_data in sub_eval_datas]
-    ]
 
-    human_eval_datas = {}
+    val_ids = [s_data['id'] for s_data in sub_eval_datas]
+
+    train_datas = {}
+    val_datas = {}
     for eval_data in eval_datas:
         if not eval_data['eval'].startswith('human_'):
             continue
-        if eval_data['id'] not in human_eval_datas:
+        
+        if eval_data['id'] in val_ids:
+            datas = val_datas
+        else:
+            datas = train_datas
+
+        if eval_data['id'] not in datas:
             scenario = scenarios[eval_data['task']]
             messages = Messages([Message(**message) for message in eval_data['message']])
             question = evaluation_template.format(
@@ -62,17 +65,18 @@ def perpare_train_datas():
                 message = messages.to_json(),
                 criteria = criterias[scenario['task']]
             )
-            human_eval_datas[eval_data['id']] = dspy.Example({
+            datas[eval_data['id']] = dspy.Example({
                 'question': question,
                 'answer': {},
                 'criteria': criterias[scenario['task']]
             })
-        scores = EvalScores([EvalScore(**score) for score in eval_data['scores']])
-        human_eval_datas[eval_data['id']]['answer'][eval_data['eval']] = scores
+        datas[eval_data['id']]['answer'][eval_data['eval']] = eval_data['scores']
         
-    return human_eval_datas
+    trainset = [x.with_inputs('question') for id, x in train_datas.items()]
+    valset = [x.with_inputs('question') for id, x in val_datas.items()]
+    return trainset, valset
 
-eval_datas = perpare_train_datas()
+trainset, valset = perpare_datas()
 
 eval_models = ['qwen-max', 'deepseek-v3', 'deepseek-r1', 'gpt-4o']
 eval_models = [get_model(model) for model in eval_models]
@@ -85,9 +89,15 @@ dspy.configure(
     )
 )
 
-trainset = [x.with_inputs('question') for id, x in eval_datas.items()]
 agent = dspy.ChainOfThought("question -> answer")
 
-tp = dspy.MIPROv2(metric=evaluation_metric, auto="light", num_threads=4)
-agent = tp.compile(agent, trainset=trainset)
-agent.save(f"optimized_agent.json")
+tp = dspy.MIPROv2(metric=evaluation_metric, auto="light", num_threads=8, verbose = True)
+agent = tp.compile(
+    agent,
+    trainset = trainset,
+    valset = valset,
+    provide_traceback = True
+)
+agent.save(f"optimized_agent.pkl")
+# agent.load("optimized_agent.pkl")
+# print(agent)

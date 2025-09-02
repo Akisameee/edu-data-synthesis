@@ -1,8 +1,8 @@
 import numpy as np
 from scipy.stats import spearmanr, pearsonr, kendalltau
-from tqdm import tqdm
+from tqdm.asyncio import tqdm_asyncio
 from copy import deepcopy
-import random
+import asyncio
 import functools
 from typing import Literal, List, Dict, Generic, TypeVar, ClassVar
 from dataclasses import dataclass, field
@@ -10,32 +10,28 @@ from dataclasses import dataclass, field
 import sys
 sys.path.insert(0, '.')
 
-from models import Base_LLM, get_model
+from modules.models import Base_LLM, get_model
+from modules.base import *
 from modules.nodes import *
-from modules.prompt_templates import *
+from modules.nodes.prompt_templates import *
 from modules.utils import *
-
 
 class Workflow:
 
     def __init__(self) -> None:
-        self.output_node: Output = Output()
-        self.nodes: Dict[int, Node] = {0: self.output_node}
-        self.edges: List[Tuple[int, int]] = []
+        self.nodes: Dict[str, Node] = {'output': Output()}
+        self.edges: List[Tuple[str, str]] = []
 
-    def add_node(self, node: Node) -> int:
-        idx = 0
-        while idx in self.nodes: idx += 1
-        self.nodes[idx] = node
-        return idx
+    def add_node(self, name: str, node: Node) -> int:
+        self.nodes[name] = node
 
-    def pop_node(self, idx: int) -> Node:
-        return self.nodes.pop(idx)
+    def pop_node(self, name: str) -> Node:
+        return self.nodes.pop(name)
     
-    def add_edge(self, idx_a: int, idx_b: int) -> None:
-        if (idx_a, idx_b) in self.edges:
+    def add_edge(self, name_a: str, name_b: str) -> None:
+        if (name_a, name_b) in self.edges:
             return
-        node_a, node_b = self.nodes[idx_a], self.nodes[idx_b]
+        node_a, node_b = self.nodes[name_a], self.nodes[name_b]
         node_a.children.append(node_b)
         if node_b.max_indegree == None:
             node_b.parents.append(node_a)
@@ -45,31 +41,32 @@ class Workflow:
             else:
                 raise ValueError(f'Exceeded maximum indegree of node {node_b.__class__}')
     
-    def remove_edge(self, idx_a: int, idx_b: int) -> None:
-        if (idx_a, idx_b) not in self.edges:
+    def remove_edge(self, name_a: str, name_b: str) -> None:
+        if (name_a, name_b) not in self.edges:
             return
-        self.edges.remove((idx_a, idx_b))
-        node_a, node_b = self.nodes[idx_a], self.nodes[idx_b]
+        self.edges.remove((name_a, name_b))
+        node_a, node_b = self.nodes[name_a], self.nodes[name_b]
         node_a.children.remove(node_b)
         node_b.parents.remove(node_a)
 
     @staticmethod
-    def check_dag(nodes: List[Node]) -> List[Node]:
+    def check_dag(nodes: Dict[str, Node], edges: List[Tuple[str, str]]) -> List[Node]:
         pass
 
     def get_neighbor(self) -> 'Workflow':
         pass
 
-    def evaluate(self, **kwargs) -> float:
+    async def evaluate(self, **kwargs) -> float:
         raise NotImplementedError
 
-    def run(self, **kwargs) -> Messages | EvalScore:
-        return self.output_node.run(**kwargs)
+    async def run(self, **kwargs) -> Messages | EvalScore:
+        return await self.nodes['output'].run(**kwargs)
 
 class EvaluationWorkflow(Workflow):
 
     def __init__(self) -> None:
         super().__init__()
+        self.nodes: Dict[str, Node] = {'output': EvaluationOutput()}
 
     @staticmethod
     def calculate_correlation(
@@ -101,26 +98,37 @@ class EvaluationWorkflow(Workflow):
         
         return (corr, pval)
 
-    def evaluate(
+    async def evaluate(
         self,
         inputs: List[dict],
-        labels_dicts: List[Dict[str, EvalScores]]
+        labels_dicts: List[Dict[str, EvalScores]],
+        max_parallel: int = 8
     ) -> float:
+        
+        semaphore = asyncio.Semaphore(max_parallel)
+        async def run_with_semaphore(index, input_kwargs):
+            async with semaphore:
+                try:
+                    result = await self.run(**input_kwargs)
+                    return index, result
+                except Exception as e:
+                    return index, None
+        
+        tasks = []
+        for i, input_kwargs in enumerate(inputs):
+            task = run_with_semaphore(i, input_kwargs)
+            tasks.append(task)
+        
+        predicts = [None] * len(inputs)
+        for task in tqdm_asyncio.as_completed(tasks, desc = 'EvalWorkflow Evaluation'):
+            index, result = await task
+            predicts[index] = result
 
-        predicts = []
-        for input_kwargs in tqdm(inputs, desc = 'EvalWorkflow Evaluation'):
-            try:
-                predict = self.run(**input_kwargs)
-                # print(f"{input_kwargs['id']}: {[score.score for score in predict]}\n")
-            except Exception as e:
-                predict = None
-            predicts.append(predict)
-
-        corr_1 = self.calculate_correlation([labels_dict['human_1'] for labels_dict in labels_dicts], predicts)[0]
+        corr_1, _ = self.calculate_correlation([labels_dict['human_1'] for labels_dict in labels_dicts], predicts)
         print(f'Human_1 corr: {corr_1}')
-        corr_2 = self.calculate_correlation([labels_dict['human_2'] for labels_dict in labels_dicts], predicts)[0]
+        corr_2, _ = self.calculate_correlation([labels_dict['human_2'] for labels_dict in labels_dicts], predicts)
         print(f'Human_2 corr: {corr_2}')
-        corr_3 = self.calculate_correlation([labels_dict['human_3'] for labels_dict in labels_dicts], predicts)[0]
+        corr_3, _ = self.calculate_correlation([labels_dict['human_3'] for labels_dict in labels_dicts], predicts)
         print(f'Human_3 corr: {corr_3}')
         corr = max([corr_1, corr_2, corr_3])
         print(f'Max corr: {corr}')

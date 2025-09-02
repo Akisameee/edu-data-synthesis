@@ -1,11 +1,10 @@
 import json
 from tqdm import tqdm
-from copy import deepcopy
+import asyncio
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '6,7'
 
-from models import get_model
-from modules.nodes import *
+from modules.models import get_model
 from modules.workflow import *
 from modules.utils import *
 
@@ -54,7 +53,7 @@ if __name__ == '__main__':
     eval_labels_dict = [data[1] for id, data in human_eval_datas.items()]
 
     eval_workflow = EvaluationWorkflow()
-    eval_workflow.add_node(Evaluate(eval_models[0]))
-    eval_workflow.add_edge(1, 0)
-    eval_workflow.evaluate(eval_inputs, eval_labels_dict)
+    eval_workflow.add_node('evaluate', Evaluate(eval_models[0]))
+    eval_workflow.add_edge('evaluate', 'output')
+    score = asyncio.run(eval_workflow.evaluate(eval_inputs, eval_labels_dict))
     
