@@ -11,8 +11,6 @@ try:
 except:
     pass
 
-print(f'cuda devices: {torch.cuda.device_count()}')
-
 class Base_LLM():
 
     def __init__(self, model_name: str) -> None:
@@ -21,15 +19,15 @@ class Base_LLM():
         self.client = None
 
     async def get_response(self, **kwargs) -> ChatCompletion:
+        raise NotImplementedError
 
+    async def tool_use(self, **kwargs) -> ChatCompletion:
         raise NotImplementedError
 
     def get_reward(self, **kwargs) -> int:
-
         raise NotImplementedError
     
     def cost(self, completion: ChatCompletion, **kwargs) -> float:
-
         raise NotImplementedError
 
 class LLM_API(Base_LLM):
@@ -82,7 +80,8 @@ class LLM_VLLM(Base_LLM):
     ) -> None:
         super().__init__(model_name)
 
-        # 初始化vllm引擎和生成参数
+        print(f'cuda devices: {torch.cuda.device_count()}')
+        
         self.llm = LLM(
             model = os.path.abspath(model_path),
             tensor_parallel_size = torch.cuda.device_count(),
@@ -90,7 +89,6 @@ class LLM_VLLM(Base_LLM):
             trust_remote_code = getattr(kwargs, 'trust_remote_code', False),
             gpu_memory_utilization = getattr(kwargs, 'gpu_memory_utilization', 0.9)
         )
-        # 配置生成参数
         self.sampling_params = SamplingParams(
             temperature = getattr(kwargs, 'temperature', 0.5),
             top_p = getattr(kwargs, 'top_p', 0.95),

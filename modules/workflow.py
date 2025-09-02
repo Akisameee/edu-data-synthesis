@@ -50,8 +50,18 @@ class Workflow:
         node_b.parents.remove(node_a)
 
     @staticmethod
-    def check_dag(nodes: Dict[str, Node], edges: List[Tuple[str, str]]) -> List[Node]:
-        pass
+    def check_graph(
+        nodes: Dict[str, Node],
+        edges: List[Tuple[str, str]],
+        current: Node = None
+    ) -> bool:
+        
+        if 'output' not in nodes:
+            return False
+        
+        for name, node in nodes.items():
+            for parent in node.parents:
+                pass
 
     def get_neighbor(self) -> 'Workflow':
         pass

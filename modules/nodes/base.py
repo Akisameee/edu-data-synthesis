@@ -25,6 +25,12 @@ class Node():
         self.llm = llm
         self.history = {}
 
+    def check_parent(self, parent: 'Node') -> bool:
+        pass
+    
+    def check_child(self, child: 'Node') -> bool:
+        pass
+
     async def run(self, **kwargs) -> Any:
         
         if len(self.parents) == 0:
