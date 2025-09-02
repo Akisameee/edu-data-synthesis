@@ -1,10 +1,11 @@
 import numpy as np
 from scipy.stats import spearmanr, pearsonr, kendalltau
+from tqdm import tqdm
 from tqdm.asyncio import tqdm_asyncio
 from copy import deepcopy
 import asyncio
 import functools
-from typing import Literal, List, Dict, Generic, TypeVar, ClassVar
+from typing import Literal, List, Dict, Set, Generic, TypeVar, ClassVar
 from dataclasses import dataclass, field
 
 import sys
@@ -19,16 +20,43 @@ from modules.utils import *
 class Workflow:
 
     def __init__(self) -> None:
-        self.nodes: Dict[str, Node] = {'output': Output()}
-        self.edges: List[Tuple[str, str]] = []
+        self.nodes: Dict[str, Node] = {'input': Input(), 'output': Output()}
 
-    def add_node(self, name: str, node: Node) -> int:
-        self.nodes[name] = node
+    def add_node(self, name: str, node: Node) -> bool:
+        if node in self.nodes.values():
+            return False
+        else:
+            self.nodes[name] = node
+            return True
 
     def pop_node(self, name: str) -> Node:
         return self.nodes.pop(name)
     
-    def add_edge(self, name_a: str, name_b: str) -> None:
+    def _get_node_name(self, node: Node) -> Optional[str]:
+        for key, value in self.nodes.items():
+            if value == node:
+                return key
+        return None
+        
+    @property
+    def edges(self) -> Set[Tuple[str, str]]:
+        edges = set()
+        for name, node in self.nodes.items():
+            for parent in node.parents:
+                parent_name = self._get_node_name(parent)
+                if node in parent.children:
+                    edges.add((parent_name, name))
+                else:
+                    raise ValueError(f'Invalid edge: {parent_name} -> {name}')
+            for child in node.children:
+                child_name = self._get_node_name(child)
+                if node in child.parents:
+                    edges.add((name, child_name))
+                else:
+                    raise ValueError(f'Invalid edge: {name} -> {child_name}')
+        return edges
+    
+    def add_edge(self, name_a: str, name_b: str) -> bool:
         if (name_a, name_b) in self.edges:
             return
         node_a, node_b = self.nodes[name_a], self.nodes[name_b]
@@ -44,46 +72,49 @@ class Workflow:
     def remove_edge(self, name_a: str, name_b: str) -> None:
         if (name_a, name_b) not in self.edges:
             return
-        self.edges.remove((name_a, name_b))
         node_a, node_b = self.nodes[name_a], self.nodes[name_b]
         node_a.children.remove(node_b)
         node_b.parents.remove(node_a)
 
-    @staticmethod
-    def check_graph(
-        nodes: Dict[str, Node],
-        edges: List[Tuple[str, str]],
-        current: Node = None
-    ) -> bool:
+    def check_graph(self) -> bool:
         
-        if 'output' not in nodes:
+        if 'input' not in self.nodes or 'output' not in self.nodes:
             return False
+        return True
         
-        for name, node in nodes.items():
-            for parent in node.parents:
-                pass
+        print(self.edges)
+        # for name, node in self.nodes.items():
+        #     if not node.check_parent():
+        #         return False
 
     def get_neighbor(self) -> 'Workflow':
         pass
 
-    async def evaluate(self, **kwargs) -> float:
+    async def evaluate(self, messages: Messages) -> float:
         raise NotImplementedError
 
-    async def run(self, **kwargs) -> Messages | EvalScore:
-        return await self.nodes['output'].run(**kwargs)
+    async def run(self, messages: Messages) -> Messages:
+        if not self.check_graph():
+            raise RuntimeError(
+                'Invalid Workflow:\n' + f'Nodes: {self.nodes.keys()}' + f'Edges: {self.edges}'
+            )
+        return await self.nodes['output'].run(messages)
 
 class EvaluationWorkflow(Workflow):
 
     def __init__(self) -> None:
         super().__init__()
-        self.nodes: Dict[str, Node] = {'output': EvaluationOutput()}
+        self.nodes: Dict[str, Node] = {
+            'input': EvaluationInput(),
+            'output': EvaluationOutput()
+        }
 
     @staticmethod
     def calculate_correlation(
         scores_labels: List[EvalScores],
         scores_predicts: List[EvalScores],
         method: Literal['pearson', 'spearman', 'kendall'] = 'kendall'
-    ):
+    ) -> Tuple[float, float]:
         scores_flatten_labels: List[float] = []
         scores_flatten_predicts: List[float] = []
         for scores_label, scores_predict in zip(scores_labels, scores_predicts):
@@ -110,38 +141,43 @@ class EvaluationWorkflow(Workflow):
 
     async def evaluate(
         self,
-        inputs: List[dict],
-        labels_dicts: List[Dict[str, EvalScores]],
+        messages_list: List[Messages],
+        scores_labels_list: Dict[str, List[EvalScores]],
         max_parallel: int = 8
     ) -> float:
         
         semaphore = asyncio.Semaphore(max_parallel)
-        async def run_with_semaphore(index, input_kwargs):
+        async def run_with_semaphore(index, inputs):
             async with semaphore:
                 try:
-                    result = await self.run(**input_kwargs)
-                    return index, result
+                    messages = await self.run(inputs)
+                    return index, messages
                 except Exception as e:
                     return index, None
         
         tasks = []
-        for i, input_kwargs in enumerate(inputs):
-            task = run_with_semaphore(i, input_kwargs)
+        for i, messages in enumerate(messages_list):
+            task = run_with_semaphore(i, messages)
             tasks.append(task)
         
-        predicts = [None] * len(inputs)
+        scores_predicts = [None] * len(messages_list)
         for task in tqdm_asyncio.as_completed(tasks, desc = 'EvalWorkflow Evaluation'):
-            index, result = await task
-            predicts[index] = result
+            index, messages = await task
+            scores_predicts[index] = messages.scores
 
-        corr_1, _ = self.calculate_correlation([labels_dict['human_1'] for labels_dict in labels_dicts], predicts)
-        print(f'Human_1 corr: {corr_1}')
-        corr_2, _ = self.calculate_correlation([labels_dict['human_2'] for labels_dict in labels_dicts], predicts)
-        print(f'Human_2 corr: {corr_2}')
-        corr_3, _ = self.calculate_correlation([labels_dict['human_3'] for labels_dict in labels_dicts], predicts)
-        print(f'Human_3 corr: {corr_3}')
-        corr = max([corr_1, corr_2, corr_3])
-        print(f'Max corr: {corr}')
+        # scores_predicts = []
+        # for messages in tqdm(messages_list):
+        #     messages = await self.run(messages)
+        #     scores_predicts.append(messages.scores)
+
+        corrs = []
+        for eval, scores_labels in scores_labels_list.items():
+            corr, _ = self.calculate_correlation(scores_labels, scores_predicts)
+            corrs.append(corr)
+            print(f'{eval} correlation: {corr}')
+        
+        corr = max(corrs)
+        print(f'max correlation: {corr}')
         return corr
 
 class GenerationWorkflow(Workflow):

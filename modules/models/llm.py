@@ -1,7 +1,7 @@
 import torch
 import os
 import json
-from openai import AsyncOpenAI
+from openai import OpenAI, AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 from transformers import AutoModelForSequenceClassification, AutoTokenizer

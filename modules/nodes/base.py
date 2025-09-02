@@ -2,7 +2,7 @@ from tqdm import tqdm
 from copy import deepcopy
 import random
 import functools
-from typing import Literal, List, Dict, Generic, TypeVar, ClassVar
+from typing import Literal, List, Dict, Generic, TypeVar, ClassVar, get_origin
 from dataclasses import dataclass, field
 
 import sys
@@ -15,9 +15,10 @@ from modules.utils import *
 class Node():
     parents: List['Node']
     children: List['Node']
-    input_type = None
-    output_type = None
+    input_state = None
+    output_state = None
     max_indegree = None
+    max_outdegree = None
 
     def __init__(self, llm: Base_LLM = None) -> None:
         self.parents = []
@@ -25,28 +26,32 @@ class Node():
         self.llm = llm
         self.history = {}
 
-    def check_parent(self, parent: 'Node') -> bool:
-        pass
+    def check_parent(self) -> bool:
+        origin = get_origin(self.input_state)
+        if origin is list or origin is List:
+            print('list')
+        else:
+            print('not list')
     
-    def check_child(self, child: 'Node') -> bool:
+    def check_child(self) -> bool:
         pass
 
-    async def run(self, **kwargs) -> Any:
+    async def run(self, messages: Messages) -> Any:
         
         if len(self.parents) == 0:
-            return await self.__call__(**kwargs)
+            return await self.__call__(messages)
         else:
             if self.max_indegree is None or self.max_indegree > 1:
                 assert all(isinstance(p, Node) for p in self.parents)
-                node_input = [await parent.run(**kwargs) for parent in self.parents]
-                return await self.__call__(node_input, **kwargs)
+                messages = [await parent.run(messages) for parent in self.parents]
+                return await self.__call__(messages)
             elif self.max_indegree == 1:
-                node_input = await self.parents[0].run(**kwargs)
-                return await self.__call__(node_input, **kwargs)
+                messages = await self.parents[0].run(messages)
+                return await self.__call__(messages)
             else:
                 raise ValueError('Invalid parent')
         
-    async def __call__(self, **kwargs) -> Any:
+    async def __call__(self, messages: Messages) -> Any:
         pass
     
 # class Review(Node):

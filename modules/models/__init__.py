@@ -1,9 +1,9 @@
 import json
 
-from models.llm import Base_LLM, LLM_API, RM_HF, LLM_VLLM
-from models.function_call import LLM_FunctionCalling
+from modules.models.llm import Base_LLM, LLM_API, RM_HF, LLM_VLLM
+from modules.models.function_call import LLM_FunctionCalling
 
-with open('./models/api_keys.json', 'r') as file:
+with open('./modules/models/api_keys.json', 'r') as file:
     api_keys = json.load(file)
 
 model_map = {

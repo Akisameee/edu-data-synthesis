@@ -5,7 +5,7 @@ from modules.nodes.base import *
 from modules.nodes.prompt_templates import *
 
 class SystemGenerate(Node):
-    output_type = SystemMessages
+    output_state = 'system'
 
     def __init__(self, llm: Base_LLM = None) -> None:
         super().__init__(llm)
@@ -13,7 +13,7 @@ class SystemGenerate(Node):
     async def __call__(
         self,
         **kwargs
-    ) -> SystemMessages:
+    ) -> Message:
         
         system_prompt = system_template.format(
             task = kwargs['scenario']['task'],
@@ -22,8 +22,8 @@ class SystemGenerate(Node):
         return Messages([Message(role = 'system', content = system_prompt)])
 
 class UserGenerate(Node):
-    input_type = (SystemMessages, AssistantMessages)
-    output_type = UserMessages
+    input_state = 'assistant'
+    output_state = 'user'
 
     def __init__(self, llm: Base_LLM = None) -> None:
         super().__init__(llm)
@@ -40,13 +40,12 @@ class UserGenerate(Node):
     @retry(max_attempt = 3)
     async def __call__(
         self,
-        messages: Messages,
-        **kwargs
-    ) -> UserMessages:
+        messages: Messages
+    ) -> Messages:
         
         prompt = user_generate_template.format(
-            scenario = kwargs['scenario'],
-            meta_data = kwargs['meta_data'],
+            scenario = messages.meta_data['scenario'],
+            meta_data = messages.meta_data['meta_data'],
             message = messages.to_json()
         )
 
@@ -64,48 +63,38 @@ class UserGenerate(Node):
         messages.append(Message(
             role = 'user',
             content = self.replace_meta_data(
-                json_obj['content'], kwargs['meta_data']
+                json_obj['content'], messages.meta_data['meta_data']
             )
         ))
         return messages
     
 class AssistantGenerate(Node):
-    input_type = UserMessages
-    output_type = AssistantMessages
+    input_state = 'user'
+    output_state = 'assistant'
 
     def __init__(self, llm: Base_LLM = None) -> None:
         super().__init__(llm)
 
     @retry(max_attempt = 3)
-    async def __call__(
-        self,
-        messages: UserMessages,
-        **kwargs
-    ) -> AssistantMessages:
+    async def __call__(self, messages: Messages) -> Messages:
         
         completion = await self.llm.get_response(messages = messages.to_json())
         self.llm.cost(completion)
         response = completion.choices[0].message.content.strip()
 
-        messages.append(Message(
-            role = 'assistant',
-            content = response
-        ))
+        messages.append(Message(role = 'assistant', content = response))
         return messages
     
 class ResponseAggregate(Node):
-    input_type = List[AssistantMessages]
-    output_type = AssistantMessages
+    input_state = 'assistant'
+    output_state = 'assistant'
 
     def __init__(self, llm: Base_LLM = None) -> None:
         super().__init__(llm)
 
     @retry(max_attempt = 3)
-    async def __call__(
-        self,
-        messages_list: List[AssistantMessages],
-        **kwargs
-    ) -> AssistantMessages:
+    async def __call__(self, messages_list: List[Messages]) -> Messages:
+
         n_messages = len(messages_list)
         if n_messages == 1:
             return messages_list[0]
@@ -118,7 +107,7 @@ class ResponseAggregate(Node):
         responses = [messages[-1] for messages in messages_list]
 
         prompt = response_aggregate_template.format(
-            scenario = kwargs['scenario'],
+            scenario = messages_list[0].meta_data['scenario'],
             history = history
         ) + '\n' + ''.join([f'Response {idx}:\n{response}\n' for idx, response in enumerate(responses)])
         

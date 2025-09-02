@@ -5,8 +5,8 @@ from modules.nodes.base import *
 from modules.nodes.prompt_templates import *
 
 class Evaluate(Node):
-    input_type = AssistantMessages
-    output_type = EvalScores
+    input_state = 'assistant'
+    output_state = 'scored'
     max_indegree = 1
 
     @staticmethod
@@ -40,14 +40,13 @@ class Evaluate(Node):
     @retry(max_attempt = 3)
     async def __call__(
         self,
-        messages: AssistantMessages,
-        **kwargs
-    ) -> EvalScores:
+        messages: Messages,
+    ) -> Messages:
         # AI_EVALUATOR_PROMPT_ZH
         prompt = evaluation_template.format(
-            scenario = kwargs['scenario'],
+            scenario = messages.meta_data['scenario'],
             message = messages.to_json(),
-            criteria = kwargs['criteria']
+            criteria = messages.meta_data['criteria']
         )
         # prompt = AI_EVALUATOR_PROMPT_ZH.format(
         #     scenario = kwargs['scenario'],
@@ -63,15 +62,15 @@ class Evaluate(Node):
         response = completion.choices[0].message.content.strip()
 
         scores = extract_json(response)
-        self.check_scores(scores, kwargs['criteria'])
+        self.check_scores(scores, messages.meta_data['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
         scores.source = self.llm
-        scores.messages = messages
-        return scores
+        messages.scores = scores
+        return messages
     
 class EvaluateICL(Node):
-    input_type = AssistantMessages
-    output_type = EvalScores
+    input_state = 'assistant'
+    output_state = 'scored'
     max_indegree = 1
 
     def __init__(self, llm: Base_LLM = None) -> None:
@@ -121,17 +120,16 @@ class EvaluateICL(Node):
     @retry(max_attempt = 3)
     async def __call__(
         self,
-        messages: AssistantMessages,
-        **kwargs
-    ) -> EvalScores:
+        messages: Messages
+    ) -> Messages:
 
         prompt = evaluation_cl_template.format(
-            scenario = kwargs['scenario'],
+            scenario = messages.scores['scenario'],
             message = messages.to_json(),
-            criteria = kwargs['criteria'],
+            criteria = messages.scores['criteria'],
             samples = self.get_human_eval_sample(
-                kwargs['task'],
-                kwargs['id']
+                messages.scores['task'],
+                messages.scores['id']
             )
         )
 
@@ -143,38 +141,36 @@ class EvaluateICL(Node):
         response = completion.choices[0].message.content.strip()
 
         scores = extract_json(response)
-        Evaluate.check_scores(scores, kwargs['criteria'])
+        Evaluate.check_scores(scores, messages.scores['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
         scores.source = self.llm
-        scores.messages = messages
-        return scores
+        messages.scores = scores
+        return messages
 
 class EvaluateSingle(Node):
-    input_type = AssistantMessages
-    output_type = EvalScores
+    input_state = 'assistant'
+    output_state = 'scored'
     max_indegree = 1
 
     @retry(max_attempt = 3)
     async def __call__(
         self,
-        messages: AssistantMessages,
-        **kwargs
-    ) -> EvalScores:
+        messages: Messages
+    ) -> Messages:
 
         if isinstance(self.llm, (LLM_API, LLM_VLLM)):
-            return await self._call_llm_api(messages, **kwargs)
+            return await self._call_llm_api(messages)
         elif isinstance(self.llm, RM_HF):
-            return self._call_rm_hf(messages, **kwargs)
+            return self._call_rm_hf(messages)
     
     async def _call_llm_api(
         self,
-        messages: AssistantMessages,
-        **kwargs
-    ) -> EvalScores:
+        messages: Messages
+    ) -> Messages:
         scores = []
-        for criterion in kwargs['criteria']:
+        for criterion in messages.meta_data['criteria']:
             prompt = evaluation_single_template.format(
-                scenario = kwargs['scenario'],
+                scenario = messages.meta_data['scenario'],
                 message = messages.to_json(),
                 criterion = criterion
             )
@@ -187,21 +183,20 @@ class EvaluateSingle(Node):
             response = completion.choices[0].message.content.strip()
             scores.append(extract_json(response))
 
-        Evaluate.check_scores(scores, kwargs['criteria'])
+        Evaluate.check_scores(scores, messages.meta_data['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
         scores.source = self.llm
-        scores.messages = messages
-        return scores
+        messages.scores = scores
+        return messages
     
     def _call_rm_hf(
         self,
-        messages: AssistantMessages,
-        **kwargs
-    ) -> EvalScores:
+        messages: Messages
+    ) -> Messages:
         scores = []
-        for criterion in kwargs['criteria']:
+        for criterion in messages.meta_data['criteria']:
             prompt = evaluation_single_template.format(
-                scenario = kwargs['scenario'],
+                scenario = messages.meta_data['scenario'],
                 message = messages.to_json(),
                 criterion = criterion
             )
@@ -224,8 +219,8 @@ class EvaluateSingle(Node):
             rewards.sort(key = lambda r: r['reward'], reverse = True)
             scores.append(rewards[0]['response'])
 
-        Evaluate.check_scores(scores, kwargs['criteria'])
+        Evaluate.check_scores(scores, messages.meta_data['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
         scores.source = self.llm
-        scores.messages = messages
-        return scores
+        messages.scores = scores
+        return messages

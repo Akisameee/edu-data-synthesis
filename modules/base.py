@@ -6,7 +6,7 @@ from typing import Literal, List, Dict, Generic, TypeVar, ClassVar, Optional
 from dataclasses import dataclass, field
 
 import sys
-sys.path.insert(0, '.')
+sys.path.insert(0, '..')
 
 from modules.models import Base_LLM
 
@@ -25,55 +25,6 @@ class GenericList(Generic[T]):
     def __add__(self, other: 'GenericList[T]'): return GenericList(self._items + other._items)
 
 @dataclass
-class Message:
-    role: Literal['system', 'user', 'assistant']
-    content: str
-
-class Messages(GenericList[Message]):
-    source: Base_LLM = None
-    ROLE_TO_CLASS: ClassVar[dict] = {}
-
-    def __init__(self, messages: List[Message]):
-        self._items = messages.copy()
-        self._auto_convert = True
-        self._check_and_convert()
-    
-    def _check_and_convert(self) -> None:
-        if not self._auto_convert or not self._items:
-            return
-        last_role = self._items[-1].role
-        target_class = self.ROLE_TO_CLASS.get(last_role)
-        if target_class and not isinstance(self, target_class):
-            self.__class__ = target_class
-    
-    def append(self, message: Message) -> None:
-        self._items.append(message)
-        self._check_and_convert()
-    
-    def pop(self, idx: int = -1) -> Message:
-        msg = self._items.pop(idx)
-        self._check_and_convert()
-        return msg
-
-class SystemMessages(Messages):
-    def __init__(self, messages: List[Message]):
-        super().__init__(messages)
-
-class UserMessages(Messages):
-    def __init__(self, messages: List[Message]):
-        super().__init__(messages)
-
-class AssistantMessages(Messages):
-    def __init__(self, messages: List[Message]):
-        super().__init__(messages)
-
-Messages.ROLE_TO_CLASS = {
-    'system': SystemMessages,
-    'user': UserMessages,
-    'assistant': AssistantMessages
-}
-
-@dataclass
 class EvalScore:
     criterion: str
     score: int | float
@@ -81,7 +32,16 @@ class EvalScore:
 
 class EvalScores(GenericList[EvalScore]):
     source: Base_LLM = None
-    messages: Messages = None
+
+    def __init__(self, items: List[EvalScore] | List[Dict[str, int | float]]):
+        if len(items) == 0:
+            self._items = []
+        elif isinstance(items[0], dict):
+            self._items = [EvalScore(**score) for score in items]
+        elif isinstance(items[0], EvalScore):
+            self._items = items.copy()
+        else:
+            raise TypeError('Invalid score type.')
 
     def sum(self) -> float:
         return sum([score.score for score in self._items])
@@ -99,3 +59,47 @@ class EvalScores(GenericList[EvalScore]):
                 self._items[criterion_idxs[scores.criterion]] = scores
             else:
                 self.append(scores)
+
+@dataclass
+class Message:
+    role: Literal['system', 'user', 'assistant']
+    content: str
+
+class Messages(GenericList[Message]):
+    source: Base_LLM = None
+    scores: EvalScores = None
+    meta_data: dict = {}
+    cost: float = 0.0
+
+    def __init__(self, items: List[Message] | List[Dict[str, str]]):
+        if len(items) == 0:
+            self._items = []
+        elif isinstance(items[0], dict):
+            self._items = [Message(**message) for message in items]
+        elif isinstance(items[0], Message):
+            self._items = items.copy()
+        else:
+            raise TypeError('Invalid message type.')
+
+    @property
+    def state(self) -> Literal['system', 'user', 'assistant', 'scored']:
+        last_role = self._items[-1].role
+        if last_role == 'assistant' and self.scores is not None:
+            return 'scored'
+        else:
+            return last_role
+    
+    def append(self, message: Message) -> None:
+        if self.state == 'scored':
+            self.scores = None
+        if (self.state == 'system' and message.role != 'user') or \
+            (self.state == 'user' and message.role != 'assistant') or \
+            (self.state == 'assistant' and message.role != 'user'):
+            raise ValueError(f'Failed to append {message.__dict__}, state={self.state}')
+        self._items.append(message)
+    
+    def pop(self, idx: int = -1) -> Message:
+        if self.state == 'scored':
+            self.scores = None
+        msg = self._items.pop(idx)
+        return msg

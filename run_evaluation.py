@@ -26,6 +26,7 @@ if __name__ == '__main__':
     eval_datas = read_jsonl(f'./eval_res/{gen_method}.jsonl')
 
     human_eval_datas = {}
+    evals = []
     for eval_data in eval_datas:
 
         if not eval_data['eval'].startswith('human_'):
@@ -36,24 +37,29 @@ if __name__ == '__main__':
         
         if eval_data['id'] not in human_eval_datas:
             scenario = scenarios[eval_data['task']]
-            human_eval_datas[eval_data['id']] = (
-                {
-                    'id': eval_data['id'],
-                    'task': eval_data['task'],
-                    'messages': Messages([Message(**message) for message in eval_data['message']]),
-                    'scenario': scenario,
-                    'criteria': criterias[scenario['task']],
-                },
-                {}
-            )
-        scores = EvalScores([EvalScore(**score) for score in eval_data['scores']])
-        human_eval_datas[eval_data['id']][1][eval_data['eval']] = scores
+            messages = Messages(eval_data['message'])
+            messages.source = eval_data['gen']
+            messages.meta_data = {
+                'id': eval_data['id'],
+                'task': eval_data['task'],
+                'scenario': scenario,
+                'criteria': criterias[scenario['task']],
+            }
+            human_eval_datas[eval_data['id']] = {'messages': messages}
+        if eval_data['eval'] not in evals:
+            evals.append(eval_data['eval'])
+        human_eval_datas[eval_data['id']][eval_data['eval']] = EvalScores(eval_data['scores'])
 
-    eval_inputs = [data[0] for id, data in human_eval_datas.items()]
-    eval_labels_dict = [data[1] for id, data in human_eval_datas.items()]
+    messages_list = []
+    scores_labels_dict = {eval: [] for eval in evals}
+    for id, data in human_eval_datas.items():
+        messages_list.append(data['messages'])
+        for eval in evals:
+            scores_labels_dict[eval].append(data[eval])
 
     eval_workflow = EvaluationWorkflow()
-    eval_workflow.add_node('evaluate', Evaluate(eval_models[0]))
+    eval_workflow.add_node('evaluate', Evaluate(eval_models[1]))
+    eval_workflow.add_edge('input', 'evaluate')
     eval_workflow.add_edge('evaluate', 'output')
-    score = asyncio.run(eval_workflow.evaluate(eval_inputs, eval_labels_dict))
+    score = asyncio.run(eval_workflow.evaluate(messages_list, scores_labels_dict))
     

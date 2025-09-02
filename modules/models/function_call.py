@@ -1,6 +1,6 @@
 import json
 from openai import OpenAI
-from models.llm import Base_LLM
+from modules.models.llm import Base_LLM
 
 class LLM_FunctionCalling():
 

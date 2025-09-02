@@ -19,7 +19,11 @@ from modules.nodes.aggregate import (
     EvaluationVoting
 )
 
-from modules.nodes.output import (
+from modules.nodes.identity import (
+    Identity,
+    Input,
+    GenerationInput,
+    EvaluationInput,
     Output,
     GenerationOutput,
     EvaluationOutput
