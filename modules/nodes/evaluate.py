@@ -42,29 +42,23 @@ class Evaluate(Node):
         self,
         messages: Messages,
     ) -> Messages:
-        # AI_EVALUATOR_PROMPT_ZH
         prompt = evaluation_template.format(
             scenario = messages.meta_data['scenario'],
             message = messages.to_json(),
             criteria = messages.meta_data['criteria']
         )
-        # prompt = AI_EVALUATOR_PROMPT_ZH.format(
-        #     scenario = kwargs['scenario'],
-        #     message = messages.to_json(),
-        #     criteria = kwargs['criteria']
-        # )
 
         completion = await self.llm.get_response(
             messages = [{'role': 'user', 'content': prompt}, ],
             temperature = 0.0
         )
-        self.llm.cost(completion)
+        messages.cost[self.name] = self.llm.cost(completion)
         response = completion.choices[0].message.content.strip()
 
         scores = extract_json(response)
         self.check_scores(scores, messages.meta_data['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
-        scores.source = self.llm
+        scores.source = self.llm.model_name
         messages.scores = scores
         return messages
     
@@ -137,13 +131,13 @@ class EvaluateICL(Node):
             messages = [{'role': 'user', 'content': prompt}, ],
             temperature = 0.0
         )
-        self.llm.cost(completion)
+        messages.cost[self.name] = self.llm.cost(completion)
         response = completion.choices[0].message.content.strip()
 
         scores = extract_json(response)
         Evaluate.check_scores(scores, messages.scores['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
-        scores.source = self.llm
+        scores.source = self.llm.model_name
         messages.scores = scores
         return messages
 
@@ -179,13 +173,13 @@ class EvaluateSingle(Node):
                 messages = [{'role': 'user', 'content': prompt}, ],
                 temperature = 0.0
             )
-            self.llm.cost(completion)
+            messages.cost[self.name] = self.llm.cost(completion)
             response = completion.choices[0].message.content.strip()
             scores.append(extract_json(response))
 
         Evaluate.check_scores(scores, messages.meta_data['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
-        scores.source = self.llm
+        scores.source = self.llm.model_name
         messages.scores = scores
         return messages
     
@@ -221,6 +215,6 @@ class EvaluateSingle(Node):
 
         Evaluate.check_scores(scores, messages.meta_data['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
-        scores.source = self.llm
+        scores.source = self.llm.model_name
         messages.scores = scores
         return messages

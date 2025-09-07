@@ -2,7 +2,7 @@ from tqdm import tqdm
 from copy import deepcopy
 import random
 import functools
-from typing import Literal, List, Dict, Generic, TypeVar, ClassVar, Optional
+from typing import Literal, List, Dict, Generic, TypeVar, Optional
 from dataclasses import dataclass, field
 
 import sys
@@ -60,6 +60,7 @@ class EvalScores(GenericList[EvalScore]):
             else:
                 self.append(scores)
 
+MessagesState = Literal['system', 'user', 'assistant', 'scored']
 @dataclass
 class Message:
     role: Literal['system', 'user', 'assistant']
@@ -69,7 +70,7 @@ class Messages(GenericList[Message]):
     source: Base_LLM = None
     scores: EvalScores = None
     meta_data: dict = {}
-    cost: float = 0.0
+    cost: Dict[str, float] = {}
 
     def __init__(self, items: List[Message] | List[Dict[str, str]]):
         if len(items) == 0:
@@ -82,7 +83,7 @@ class Messages(GenericList[Message]):
             raise TypeError('Invalid message type.')
 
     @property
-    def state(self) -> Literal['system', 'user', 'assistant', 'scored']:
+    def state(self) -> MessagesState:
         last_role = self._items[-1].role
         if last_role == 'assistant' and self.scores is not None:
             return 'scored'
@@ -103,3 +104,6 @@ class Messages(GenericList[Message]):
             self.scores = None
         msg = self._items.pop(idx)
         return msg
+    
+    def copy(self) -> 'Messages':
+        return deepcopy(self)

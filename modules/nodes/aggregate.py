@@ -6,27 +6,24 @@ from modules.nodes.prompt_templates import *
 from modules.nodes.evaluate import Evaluate
 
 class EvaluationAggregation(Node):
-    input_type = List[EvalScores]
-    output_type = EvalScores
+    input_state = 'scored'
+    output_state = 'scored'
     max_indegree = None
 
     @retry(max_attempt = 3)
-    async def __call__(
-        self,
-        scores_list: List[EvalScores],
-        **kwargs
-    ) -> EvalScores:
-        n_scores = len(scores_list)
-        if n_scores == 1:
-            return scores_list[0]
-        
-        assert all(scores.messages == scores_list[0].messages for scores in scores_list)
+    async def __call__(self, messages_list: List[Messages]) -> Messages:
+        if len(messages_list) == 1:
+            return messages_list[0]
 
+        messages = messages_list[0].copy()
         prompt = evaluation_aggregate_template.format(
-            scenario = kwargs['scenario'],
-            message = scores_list[0].messages.to_json(),
-            criteria = kwargs['criteria']
-        ) + '\n' + ''.join([f'Scores {idx}:\n{scores.to_json()}\n' for idx, scores in enumerate(scores_list)])
+            scenario = messages.meta_data['scenario'],
+            message = messages.to_json(),
+            criteria = messages.meta_data['criteria']
+        ) + '\n' + ''.join([
+            f'Scores {idx}:\n{msgs.scores.to_json()}\n'
+            for idx, msgs in enumerate(messages_list)
+        ])
         
         completion = await self.llm.get_response(
             messages = [{'role': 'user', 'content': prompt}, ]
@@ -35,15 +32,15 @@ class EvaluationAggregation(Node):
         response = completion.choices[0].message.content.strip()
 
         scores = extract_json(response)
-        Evaluate.check_scores(scores, kwargs['criteria'])
+        Evaluate.check_scores(scores, messages.meta_data['criteria'])
         scores = EvalScores([EvalScore(**score) for score in scores])
         scores.source = self.llm
-        scores.messages = scores_list[0].messages
-        return scores
+        messages.scores = scores
+        return messages
     
 class EvaluationVoting(Node):
-    input_type = List[EvalScores]
-    output_type = EvalScores
+    input_state = 'scored'
+    output_state = 'scored'
     max_indegree = None
 
     @retry(max_attempt = 3)
@@ -78,8 +75,8 @@ class EvaluationVoting(Node):
         return scores
     
 class Debate(Node):
-    input_type = List[EvalScores] | List[Messages]
-    output_type = List[EvalScores] | List[Messages]
+    input_state = 'scored'
+    output_state = 'scored'
     max_indegree = None
     
     def __init__(self, llm: Base_LLM = None) -> None:

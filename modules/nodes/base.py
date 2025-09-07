@@ -13,46 +13,66 @@ from modules.base import *
 from modules.utils import *
 
 class Node():
-    parents: List['Node']
-    children: List['Node']
-    input_state = None
-    output_state = None
-    max_indegree = None
-    max_outdegree = None
+    _name: str = None
+    input_state: MessagesState = None
+    output_state: MessagesState = None
+    max_indegree: int = None
+    max_outdegree: int = None
 
     def __init__(self, llm: Base_LLM = None) -> None:
-        self.parents = []
-        self.children = []
         self.llm = llm
-        self.history = {}
 
-    def check_parent(self) -> bool:
-        origin = get_origin(self.input_state)
-        if origin is list or origin is List:
-            print('list')
+    @property
+    def name(self) -> str:
+        if self._name is None:
+            return str(self)
         else:
-            print('not list')
-    
-    def check_child(self) -> bool:
-        pass
-
-    async def run(self, messages: Messages) -> Any:
+            return self._name
         
-        if len(self.parents) == 0:
-            return await self.__call__(messages)
-        else:
-            if self.max_indegree is None or self.max_indegree > 1:
-                assert all(isinstance(p, Node) for p in self.parents)
-                messages = [await parent.run(messages) for parent in self.parents]
-                return await self.__call__(messages)
-            elif self.max_indegree == 1:
-                messages = await self.parents[0].run(messages)
-                return await self.__call__(messages)
-            else:
-                raise ValueError('Invalid parent')
+    @name.setter
+    def name(self, new_name: str):
+        self._name = new_name
+
+    def __hash__(self) -> int:
+        return hash(self.to_tuple())
+
+    def __eq__(self, other: 'Node') -> bool:
+        return self.to_tuple() == other.to_tuple()
+    
+    def __gt__(self, other: 'Node') -> bool:
+        return self.to_tuple() > other.to_tuple()
+
+    def __lt__(self, other: 'Node') -> bool:
+        return self.to_tuple() < other.to_tuple()
+
+    def to_tuple(self) -> tuple:
+        return (
+            self.__class__.__name__,
+            self.llm.model_name if self.llm is not None else '',
+            self.name if self.name is not None else ''
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            'class_module': self.__class__.__module__,
+            'class_name': self.__class__.__name__,
+            'model_name': self.llm.model_name if self.llm is not None else None,
+            'name': self.name
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Node':
+        module_name = data['class_module']
+        class_name = data['class_name']
+        module = __import__(module_name, fromlist=[class_name])
+        node_class = getattr(module, class_name)
+        llm = get_model(data['model_name']) if data['model_name'] is not None else None
+        node: Node = node_class(llm = llm)
+        node.name = data['name']
+        return node
         
     async def __call__(self, messages: Messages) -> Any:
-        pass
+        return messages
     
 # class Review(Node):
 #     input_type = AssistantMessages

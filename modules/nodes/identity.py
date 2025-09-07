@@ -6,10 +6,7 @@ from modules.nodes.prompt_templates import *
 
 class Identity(Node):
     input_state = Any
-    output_state = Any
-
-    def __init__(self) -> None:
-        super().__init__(None)
+    output_state = input_state
 
     async def __call__(self, messages: Messages) -> Messages:
         return messages
