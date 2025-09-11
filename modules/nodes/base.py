@@ -13,43 +13,33 @@ from modules.base import *
 from modules.utils import *
 
 class Node():
-    _name: str = None
+    name: str = None
     input_state: MessagesState = None
     output_state: MessagesState = None
     max_indegree: int = None
     max_outdegree: int = None
 
-    def __init__(self, llm: Base_LLM = None) -> None:
+    def __init__(self, llm: str | Base_LLM = None) -> None:
+        if llm is not None and isinstance(llm, str):
+            llm = get_model(llm)
         self.llm = llm
 
-    @property
-    def name(self) -> str:
-        if self._name is None:
-            return str(self)
-        else:
-            return self._name
-        
-    @name.setter
-    def name(self, new_name: str):
-        self._name = new_name
+    # def __hash__(self) -> int:
+    #     return hash(self.to_tuple())
 
-    def __hash__(self) -> int:
-        return hash(self.to_tuple())
-
-    def __eq__(self, other: 'Node') -> bool:
-        return self.to_tuple() == other.to_tuple()
+    # def __eq__(self, other: 'Node') -> bool:
+    #     return self.to_tuple() == other.to_tuple()
     
-    def __gt__(self, other: 'Node') -> bool:
-        return self.to_tuple() > other.to_tuple()
+    # def __gt__(self, other: 'Node') -> bool:
+    #     return self.to_tuple() > other.to_tuple()
 
-    def __lt__(self, other: 'Node') -> bool:
-        return self.to_tuple() < other.to_tuple()
+    # def __lt__(self, other: 'Node') -> bool:
+    #     return self.to_tuple() < other.to_tuple()
 
     def to_tuple(self) -> tuple:
         return (
             self.__class__.__name__,
-            self.llm.model_name if self.llm is not None else '',
-            self.name if self.name is not None else ''
+            self.llm.model_name if self.llm is not None else ''
         )
 
     def to_dict(self) -> dict:

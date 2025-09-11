@@ -5,11 +5,11 @@ from openai import OpenAI, AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-try:
-    from vllm import LLM
-    from vllm import SamplingParams
-except:
-    pass
+# try:
+#     from vllm import LLM
+#     from vllm import SamplingParams
+# except:
+#     pass
 
 class Base_LLM():
 
@@ -41,7 +41,6 @@ class LLM_API(Base_LLM):
         price: dict
     ) -> None:
         super().__init__(model_name)
-
         self.model_name_client = model_name_client
         self.api_key = api_key
         self.base_url = base_url
@@ -56,82 +55,73 @@ class LLM_API(Base_LLM):
         messages: list,
         **kwargs
     ) -> ChatCompletion:
-
         completion = await self.client.chat.completions.create(
             model = self.model_name_client,
             messages = messages,
             **kwargs
         )
-
         return completion
     
     def cost(self, completion: ChatCompletion, **kwargs) -> float:
-
         return completion.usage.prompt_tokens * self.price['prompt'] + \
             completion.usage.completion_tokens * self.price['completion']
     
-class LLM_VLLM(Base_LLM):
+# class LLM_VLLM(Base_LLM):
 
-    def __init__(
-        self,
-        model_name: str,
-        model_path: str,
-        **kwargs
-    ) -> None:
-        super().__init__(model_name)
+#     def __init__(
+#         self,
+#         model_name: str,
+#         model_path: str,
+#         **kwargs
+#     ) -> None:
+#         super().__init__(model_name)
+#         print(f'cuda devices: {torch.cuda.device_count()}')
+#         self.llm = LLM(
+#             model = os.path.abspath(model_path),
+#             tensor_parallel_size = torch.cuda.device_count(),
+#             dtype = getattr(kwargs, 'dtype', 'auto'),
+#             trust_remote_code = getattr(kwargs, 'trust_remote_code', False),
+#             gpu_memory_utilization = getattr(kwargs, 'gpu_memory_utilization', 0.9)
+#         )
+#         self.sampling_params = SamplingParams(
+#             temperature = getattr(kwargs, 'temperature', 0.5),
+#             top_p = getattr(kwargs, 'top_p', 0.95),
+#             max_tokens = getattr(kwargs, 'max_tokens', 1024),
+#             n = getattr(kwargs, 'n', 1),
+#             stop = getattr(kwargs, 'stop', None),
+#             presence_penalty = getattr(kwargs, 'presence_penalty', 0.0)
+#         )
 
-        print(f'cuda devices: {torch.cuda.device_count()}')
-        
-        self.llm = LLM(
-            model = os.path.abspath(model_path),
-            tensor_parallel_size = torch.cuda.device_count(),
-            dtype = getattr(kwargs, 'dtype', 'auto'),
-            trust_remote_code = getattr(kwargs, 'trust_remote_code', False),
-            gpu_memory_utilization = getattr(kwargs, 'gpu_memory_utilization', 0.9)
-        )
-        self.sampling_params = SamplingParams(
-            temperature = getattr(kwargs, 'temperature', 0.5),
-            top_p = getattr(kwargs, 'top_p', 0.95),
-            max_tokens = getattr(kwargs, 'max_tokens', 1024),
-            n = getattr(kwargs, 'n', 1),
-            stop = getattr(kwargs, 'stop', None),
-            presence_penalty = getattr(kwargs, 'presence_penalty', 0.0)
-        )
-
-    @torch.no_grad()
-    async def get_response(
-        self,
-        messages: list,
-        **kwargs
-    ) -> ChatCompletion:
-
-        outputs = self.llm.chat(
-            messages,
-            self.sampling_params,
-            use_tqdm = False
-        )
-
-        choice = Choice(
-            finish_reason = 'stop',
-            index = 0,
-            message = ChatCompletionMessage(
-                role = 'assistant',
-                content = outputs[0].outputs[0].text
-            )
-        )
-        completion = ChatCompletion(
-            id = '0',
-            choices = [choice],
-            created = 1,
-            model = self.model_name,
-            object = 'chat.completion'
-        )
-
-        return completion
+#     @torch.no_grad()
+#     async def get_response(
+#         self,
+#         messages: list,
+#         **kwargs
+#     ) -> ChatCompletion:
+#         outputs = self.llm.chat(
+#             messages,
+#             self.sampling_params,
+#             use_tqdm = False
+#         )
+#         choice = Choice(
+#             finish_reason = 'stop',
+#             index = 0,
+#             message = ChatCompletionMessage(
+#                 role = 'assistant',
+#                 content = outputs[0].outputs[0].text
+#             )
+#         )
+#         completion = ChatCompletion(
+#             id = '0',
+#             choices = [choice],
+#             created = 1,
+#             model = self.model_name,
+#             object = 'chat.completion'
+#         )
+#         return completion
     
-    def cost(self, completion: ChatCompletion, **kwargs) -> float:
-
-        return 0
+#     def cost(self, completion: ChatCompletion, **kwargs) -> float:
+#         return 0
     
 class RM_HF(Base_LLM):
 

@@ -152,7 +152,7 @@ class EvaluateSingle(Node):
         messages: Messages
     ) -> Messages:
 
-        if isinstance(self.llm, (LLM_API, LLM_VLLM)):
+        if isinstance(self.llm, LLM_API):
             return await self._call_llm_api(messages)
         elif isinstance(self.llm, RM_HF):
             return self._call_rm_hf(messages)

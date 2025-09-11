@@ -10,13 +10,11 @@ from utils import *
 
 if __name__ == '__main__':
 
-    messages_list, scores_labels_dict = perpare_eval_datas()
+    val_dataset = EvaluationFullCriteria('./eval_res/sub_eval_samples.jsonl')
 
-    # eval_workflow = EvaluationWorkflow()
-    # eval_workflow.add_node('evaluate', Evaluate(eval_models[1]))
-    # eval_workflow.add_edge('input', 'evaluate')
-    # eval_workflow.add_edge('evaluate', 'output')
-    # eval_workflow.save('eval_workflow.json')
-    eval_workflow = EvaluationWorkflow.load('eval_workflow.json')
-    score = asyncio.run(eval_workflow.evaluate(messages_list, scores_labels_dict))
+    eval_workflow = EvaluationWorkflow()
+    eval_workflow.add_node('evaluate_0', Evaluate(get_model('deepseek-v3')))
+    eval_workflow.add_edge('input', 'evaluate')
+    eval_workflow.add_edge('evaluate_0', 'output')
+    score = asyncio.run(eval_workflow.evaluate(val_dataset))
     

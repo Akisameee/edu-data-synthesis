@@ -29,7 +29,7 @@ def extract_json(response: str):
                 json_obj = fix_json_close(json_str)
                 return json_obj
             except:
-                raise ValueError(f'[JSON Parse Error] {str(e)}. Invalid JSON string: {json_str}')
+                raise ValueError(f'[JSON Parse Error] {str(e)}.')
     else:
         return extract_json(f'```json{response}```')
         # raise ValueError(f'[JSON Parse Error] Code block not found. Invalid response: {response}')
@@ -142,17 +142,32 @@ def retry(
     verbose: bool = False
 ):
     def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            n_attempt = 0
-            while n_attempt < max_attempt:
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    n_attempt += 1
-                    if verbose:
-                        tqdm.write(f"Attempt {n_attempt} failed: {e}")
-                    if n_attempt == max_attempt:
-                        raise e
-        return wrapper
+        if inspect.iscoroutinefunction(func):
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                n_attempt = 0
+                while n_attempt < max_attempt:
+                    try:
+                        return await func(*args, **kwargs)
+                    except Exception as e:
+                        n_attempt += 1
+                        if verbose:
+                            tqdm.write(f"Attempt {n_attempt}/{max_attempt} failed: {e}")
+                        if n_attempt == max_attempt:
+                            raise e
+            return async_wrapper
+        else:
+            @functools.wraps(func)
+            def sync_wrapper(*args, **kwargs):
+                n_attempt = 0
+                while n_attempt < max_attempt:
+                    try:
+                        return func(*args, **kwargs)
+                    except Exception as e:
+                        n_attempt += 1
+                        if verbose:
+                            tqdm.write(f"Attempt {n_attempt}/{max_attempt} failed: {e}")
+                        if n_attempt == max_attempt:
+                            raise e
+            return sync_wrapper
     return decorator

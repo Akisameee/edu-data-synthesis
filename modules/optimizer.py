@@ -7,27 +7,78 @@ import os
 from modules.logging import TqdmLogger
 from modules.models import get_model
 from modules.workflow import *
+from modules.datas import *
 from modules.utils import *
 
 RES_DIR = './opt_res'
 
 class Optimizer:
 
-    def __init__(self, init_workflow: Workflow) -> None:
+    def __init__(
+        self,
+        init_workflow: Workflow,
+        dataset: Dataset,
+        cost_weight: float = -1
+    ) -> None:
         self.workflow: Workflow = init_workflow
-        self.workflows: Dict[Workflow, float] = {}
-        self.logger = TqdmLogger(f'{self.__class__.__name__}_Opt', RES_DIR)
+        self.workflows_evaluated: List[Dict[str, Workflow | float]] = []
+        self.dataset = dataset
+        self.cost_weight = cost_weight
 
-    def add_node(self, node: Node) -> None:
-        idx = 0
-        while True:
-            name = f'{node.__class__.__name__}_{idx}'
-            if name not in self.workflow.nodes:
-                break
-            else: idx += 1
-        self.workflow.add_node(name, node)
+        workflow_cls = init_workflow.__class__.__name__.lower()
+        optimizer_cls = self.__class__.__name__.lower()
+        self.scores_path = os.path.join(RES_DIR, f'{workflow_cls}_scores.json')
+        self.logger = TqdmLogger(f'{workflow_cls}_{optimizer_cls}_opt', RES_DIR)
 
-    # def 
+        self.workflows_evaluated = self.load_scores()
+        self.opt_cost = 0
+
+    def check_evaluated(self, workflow: Workflow) -> Optional[Tuple[float, float]]:
+        for workflow_evaluated in self.workflows_evaluated:
+            if str(workflow.sub_nec.to_tuple()) == workflow_evaluated['tuple_tag']:
+                return workflow_evaluated['score'], workflow_evaluated['cost']
+        return None
+
+    def evaluate(self, workflow: Workflow, n_eval: int = 1) -> float:
+        eval_res = self.check_evaluated(workflow)
+        if eval_res is None:
+            scores, costs = [], []
+            for _ in range(n_eval):
+                score, cost = asyncio.run(workflow.evaluate(self.dataset))
+                scores.append(score)
+                costs.append(cost)
+            score_avg = sum(scores) / n_eval
+            cost_avg = sum(costs) / n_eval
+            self.workflows_evaluated.append({
+                'workflow': workflow.sub_nec,
+                'tuple_tag': str(workflow.sub_nec.to_tuple()),
+                'score': score_avg,
+                'cost': cost_avg
+            })
+            self.save_scores(self.workflows_evaluated)
+        else:
+            score_avg, cost_avg = eval_res
+        self.logger.info(f'Evaluation result for {workflow.edges}:\nscore: {score_avg}, cost: {cost_avg}.')
+        return score_avg + cost_avg * self.cost_weight
+    
+    def load_scores(self) -> List[Dict[str, Workflow | float]]:
+        if not os.path.exists(self.scores_path):
+            return []
+        with open(self.scores_path, 'r') as f:
+            datas: List[Dict[str, str | float]] = json.load(f)
+        workflows_evaluated: List[Dict[str, Workflow | float]] = []
+        for data in datas:
+            data['workflow'] = Workflow.from_dict(data['workflow'])
+            workflows_evaluated.append(data)
+        return workflows_evaluated
+
+    def save_scores(self, workflows_evaluated: List[Dict[str, Workflow | float]]) -> None:
+        datas = []
+        for workflow_evaluated in workflows_evaluated:
+            workflow_evaluated['workflow'] = workflow_evaluated['workflow'].to_dict()
+            datas.append(workflow_evaluated)
+        with open(self.scores_path, 'w') as f:
+            json.dump(datas, f, indent=4)
 
     def run(self, **kwargs) -> Workflow:
         raise NotImplementedError
@@ -36,11 +87,21 @@ class LocalSearch(Optimizer):
 
     @dataclass
     class Operation:
-        func: callable
+        func: str
         args: tuple = None
         kwargs: dict = None
 
-    def get_mutation_ops(self, workflow: Workflow, mutated_edges: Tuple[str, str] = []) -> List[Operation]:
+        def apply(self, workflow: Workflow) -> Workflow:
+            workflow = workflow.copy()
+            args = self.args if self.args is not None else ()
+            kwargs = self.kwargs if self.kwargs is not None else {}
+            getattr(workflow, self.func)(*args, **kwargs)
+            return workflow
+
+    def get_mutation_ops(
+        self, workflow: Workflow,
+        mutated_edges: List[Tuple[str, str]] = []
+    ) -> List[Operation]:
         ops: List[self.Operation] = []
         for parent in workflow.nodes.values():
             for child in workflow.nodes.values():
@@ -56,15 +117,42 @@ class LocalSearch(Optimizer):
                     ops.append(self.Operation('remove_edge', edge))
         return ops
     
-    def get_neighbor(self, workflow: Workflow, max_mutation_ops: int) -> List[Workflow]:
-        neighbors: Dict[List[self.Operation], Workflow] = {}
-        mutated_edges: Tuple[str, str] = []
-        for _ in max_mutation_ops:
-            pass
+    def get_neighbor(
+        self,
+        workflow: Workflow,
+        max_mutation_ops: int,
+        mutated_edges: List[Tuple[str, str]] = []
+    ) -> Workflow:
+        mutated_workflows: List[Tuple[Workflow, Tuple[str, str]]] = []
+        mutation_ops = self.get_mutation_ops(workflow, mutated_edges)
+        random.shuffle(mutation_ops)
+        for op in mutation_ops:
+            mutated_workflow = op.apply(workflow)
+            if mutated_workflow.check() and self.check_evaluated(mutated_workflow) is None:
+                return mutated_workflow
+            mutated_workflows.append((mutated_workflow, op.args))
+        if max_mutation_ops > 0:
+            for mutated_workflow, mutated_edge in mutated_workflows:
+                neighbor = self.get_neighbor(mutated_workflow, max_mutation_ops - 1, mutated_edges + [mutated_edge])
+                if neighbor is not None:
+                    return neighbor
+        return None
     
     def run(
         self,
-        max_mutation_ops: int = 3,
+        max_mutation_ops: int = 4,
         max_iter: int = 10
-    ):
-        pass
+    ) -> Workflow:
+        self.logger.info('Evaluating initial workflow...')
+        self.evaluate(self.workflow)
+        for iteration in range(max_iter):
+            self.logger.info(f'Optimization step: {iteration + 1}/{max_iter}:')
+            neighbor = self.get_neighbor(self.workflow, max_mutation_ops)
+            if neighbor is None:
+                self.logger.info(f'Unable to find avaliable neighbors.')
+                break
+            self.logger.info(f'Found neighbor: {neighbor.sub_nec.edges}.')
+            if self.evaluate(neighbor) > self.evaluate(self.workflow):
+                self.workflow = neighbor
+        return self.workflow
+    

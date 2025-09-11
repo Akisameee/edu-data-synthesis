@@ -153,36 +153,3 @@ Reponses from other agents:
 {other_responses}
 Use opinions from other agents carefully as additional advice, provide an updated answer with same format.
 '''
-
-planning_template = \
-'''
-你是一个规划智能体，你需要通过调用工具执行教育领域{task}场景下的数据生成过程。
-
-考虑一个马尔可夫决策过程，你需要根据现有的状态（生成的结果、中间过程等）决策并执行一次动作（调用工具）。
-在每次执行动作后，你会得到：
-    - state：状态信息
-        - scenario：本条数据对应的特定教育场景
-        - criteria：针对该教育场景的评估指标
-        - meta_data：生成本条数据使用的元数据
-        - message：生成的对话数据
-        - critique：针对message的改进意见
-    - available_actions：当前状态下可用的动作（工具）
-    - available_models：可用的模型名称
-
-大部分动作需要依靠大语言模型的生成能力，调用大模型也需要产生一定的开销。
-目标（优先级从高到低）：
-    1. 生成message对话数据
-        - 调用user_generate和assistant_generate生成对话数据
-            - 不同模型的生成性能不同，原始数据的生成很大程度上决定了数据质量的上限
-    2. 尽可能将对话数据在**所有模型**的所有评估指标上的表现提升至**满分10分**
-        - 通过evaluate评估目前message得分，决定是否继续改进
-            - 使用尽可能多的模型进行评估
-            - 使用和生成相同的模型评估可能会导致偏见
-        - 通过review和refine对现有message进行改进
-            - 不同模型的反馈/改进性能不同
-            - 使用各种模型进行评估，选择评估得分较低的模型进行review
-        - 生成多轮对话扩充message内容
-
-初始状态：
-{init_state}
-'''

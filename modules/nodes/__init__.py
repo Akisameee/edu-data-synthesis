@@ -15,6 +15,9 @@ from modules.nodes.evaluate import (
 )
 
 from modules.nodes.aggregate import (
+    EvaluationAverage,
+    EvaluationMax,
+    EvaluationMin,
     EvaluationAggregation,
     EvaluationVoting
 )

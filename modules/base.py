@@ -31,7 +31,7 @@ class EvalScore:
     reason: str
 
 class EvalScores(GenericList[EvalScore]):
-    source: Base_LLM = None
+    source: str = None
 
     def __init__(self, items: List[EvalScore] | List[Dict[str, int | float]]):
         if len(items) == 0:
@@ -42,6 +42,10 @@ class EvalScores(GenericList[EvalScore]):
             self._items = items.copy()
         else:
             raise TypeError('Invalid score type.')
+        
+    @property
+    def criteria(self) -> List[str]:
+        return [score.criterion for score in self._items]
 
     def sum(self) -> float:
         return sum([score.score for score in self._items])
@@ -67,7 +71,7 @@ class Message:
     content: str
 
 class Messages(GenericList[Message]):
-    source: Base_LLM = None
+    source: str = None
     scores: EvalScores = None
     meta_data: dict = {}
     cost: Dict[str, float] = {}

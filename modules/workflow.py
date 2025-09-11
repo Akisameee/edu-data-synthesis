@@ -17,6 +17,7 @@ from modules.models import Base_LLM, get_model
 from modules.base import *
 from modules.nodes import *
 from modules.nodes.prompt_templates import *
+from modules.datas import *
 from modules.utils import *
 class Workflow:
 
@@ -26,7 +27,7 @@ class Workflow:
         self._sub_nec: 'Workflow' = None
 
     def add_node(self, name: str, node: Node) -> None:
-        if node in self.nodes.values():
+        if node.name in self.nodes:
             raise ValueError(f'Failed to add a repeated node {name}({node.__class__}).')
         node.name = name
         self.nodes[name] = node
@@ -94,7 +95,7 @@ class Workflow:
         self._sub_nec = None
 
     @property
-    def _nec_nodes(self) -> List[str]:
+    def _nec_nodes(self) -> Dict[str, Node]:
         reachable_from_input = set()
         queue = collections.deque(['input'])
         while queue:
@@ -115,14 +116,32 @@ class Workflow:
                     if parent_name not in reachable_from_output:
                         queue.append(parent_name)
 
-        return reachable_from_input & reachable_from_output
+        return {
+            name: self.nodes[name]
+            for name in reachable_from_input & reachable_from_output
+        }
     
     @property
     def _nec_edges(self) -> List[Tuple[str, str]]:
         return [
             edge for edge in self.edges
-            if edge[0] in self._nec_nodes or edge[1] in self._nec_nodes
+            if edge[0] in self._nec_nodes and edge[1] in self._nec_nodes
         ]
+    
+    @staticmethod
+    def merge_invalid_nodes(workflow: 'Workflow') -> 'Workflow':
+        nodes = {name: node for name, node in workflow.nodes.items()}
+        for name, node in nodes.items():
+            if node.input_state == node.output_state and \
+                (node.max_indegree is None or node.max_indegree > 1):
+                if workflow.indegree(name) == 1:
+                    parent = workflow.parents(name)[0]
+                    workflow.remove_edge(parent, name)
+                    for child in workflow.children(name):
+                        workflow.remove_edge(name, child)
+                        workflow.add_edge(parent, child)
+                    workflow.pop_node(name)
+        return workflow
     
     @property
     def sub_nec(self) -> 'Workflow':
@@ -130,24 +149,25 @@ class Workflow:
             self._sub_nec = self.__class__()
             self._sub_nec.nodes = self._nec_nodes
             self._sub_nec.edges = self._nec_edges
+            self._sub_nec = self.merge_invalid_nodes(self._sub_nec)
         return self._sub_nec
 
     def get_topo_order(self) -> List[str]:
         indegrees = {name: self.indegree(name) for name in self.nodes}
         heap: List[Node] = []
-        for name, indegree in indegrees:
+        for name, indegree in indegrees.items():
             if indegree == 0:
-                heapq.heappush(heap, self.nodes[name])
+                heapq.heappush(heap, (self.nodes[name].to_tuple(), name))
         
         topo_order = []
         while heap:
-            name = heapq.heappop(heap).name
+            _, name = heapq.heappop(heap)
             topo_order.append(name)
             children_name = self.children(name)
             for child_name in children_name:
                 indegrees[child_name] -= 1
                 if indegrees[child_name] == 0:
-                    heapq.heappush(heap, self.nodes[child_name])
+                    heapq.heappush(heap, (self.nodes[child_name].to_tuple(), child_name))
         
         if len(topo_order) != len(self.nodes):
             raise RuntimeError('Workflow has cycles.')
@@ -164,11 +184,14 @@ class Workflow:
             return False
         return True
 
-    def __eq__(self, other: 'Workflow') -> bool:
-        return self.to_dict() == other.to_dict()
-
-    def __hash__(self) -> int:
-        return hash(self.to_dict())
+    def equal(self, other: 'Workflow') -> bool:
+        return self.to_tuple() == other.to_tuple()
+    
+    def copy(self) -> 'Workflow':
+        new_workflow = self.__class__()
+        new_workflow.nodes = self.nodes.copy()
+        new_workflow.edges = deepcopy(self.edges)
+        return new_workflow
 
     async def run(self, messages: Messages) -> Messages:
         if not self.check():
@@ -193,16 +216,33 @@ class Workflow:
                     input_data = parent_outputs
             call_results[name] = await node(input_data)
         return call_results['output']
+    
+    def to_tuple(self) -> tuple:
+        topo_order = self.get_topo_order()
+        return tuple(
+            (
+                self.nodes[name].to_tuple(),
+                tuple(sorted([topo_order.index(parent) for parent in self.parents(name)])),
+                tuple(sorted([topo_order.index(child) for child in self.children(name)]))
+            ) for name in topo_order
+        )
 
     def to_dict(self) -> dict:
         return {
+            'class_module': self.__class__.__module__,
+            'class_name': self.__class__.__name__,
             'nodes': {name: node.to_dict() for name, node in self.nodes.items()},
             'edges': self.edges
         }
     
     @classmethod
     def from_dict(cls, data: dict) -> 'Workflow':
-        workflow = cls()
+        module_name = data['class_module']
+        class_name = data['class_name']
+        module = __import__(module_name, fromlist=[class_name])
+        workflow_class = getattr(module, class_name)
+        workflow: Workflow = workflow_class()
+
         workflow.nodes = {name: Node.from_dict(data) for name, data in data['nodes'].items()}
         workflow.edges = data['edges']
         return workflow
@@ -254,12 +294,11 @@ class EvaluationWorkflow(Workflow):
         else:
             raise ValueError("Method must be 'pearson', 'spearman', or 'kendall'")
         
-        return (corr, pval)
+        return (float(corr), float(pval))
 
     async def evaluate(
         self,
-        messages_list: List[Messages],
-        scores_labels_list: Dict[str, List[EvalScores]],
+        dataset: EvaluationFullCriteria,
         max_parallel: int = 8
     ) -> Tuple[float, float]:
         semaphore = asyncio.Semaphore(max_parallel)
@@ -269,14 +308,15 @@ class EvaluationWorkflow(Workflow):
                     messages = await self.run(inputs)
                     return index, messages
                 except Exception as e:
+                    tqdm.write(f'Evaluation error: {e}')
                     return index, None
         
         tasks = []
-        for i, messages in enumerate(messages_list):
+        for i, messages in enumerate(dataset.inputs):
             task = run_with_semaphore(i, messages)
             tasks.append(task)
         
-        messages_predicts: List[Messages] = [None] * len(messages_list)
+        messages_predicts: List[Messages] = [None] * len(dataset.inputs)
         for task in tqdm_asyncio.as_completed(tasks, desc = 'EvalWorkflow Evaluation'):
             index, messages = await task
             messages_predicts[index] = messages
@@ -286,17 +326,27 @@ class EvaluationWorkflow(Workflow):
         #     messages = await self.run(messages)
         #     scores_predicts.append(messages.scores)
 
+        n_result = sum([1 if msgs is not None else 0 for msgs in messages_predicts])
         corrs = []
-        for eval, scores_labels in scores_labels_list.items():
+        for eval, scores_labels in dataset.labels.items():
             corr, _ = self.calculate_correlation(
                 scores_labels,
-                [msgs.scores for msgs in messages_predicts]
+                [msgs.scores if msgs is not None else None for msgs in messages_predicts]
             )
             corrs.append(corr)
         max_corr = max(corrs)
-        print(f'correlations: {corrs}, max correlation: {max_corr}')
-        avg_cost = sum([msgs.cost for msgs in messages_predicts])
-        print(f'avg cost: {avg_cost}')
+        tqdm.write(f'correlations: {corrs}, max correlation: {max_corr}')
+
+        costs = {}
+        for messages_predict in messages_predicts:
+            if messages_predict is None: continue
+            for name, cost in messages_predict.cost.items():
+                if name not in costs:
+                    costs[name] = 0
+                costs[name] += cost
+        avg_costs = {name: cost / n_result for name, cost in costs.items()}
+        avg_cost = sum(avg_costs.values())
+        tqdm.write(f'avg costs: {avg_costs}, avg cost: {avg_cost}')
         return max_corr, avg_cost
 
 class GenerationWorkflow(Workflow):
