@@ -1,42 +1,70 @@
-from modules.models import get_model
 from modules.utils import *
 from modules.base import *
 
+def read_scenarios(theme_dir: str, language: str) -> Dict[str, Scenario]:
+
+    with open(os.path.join(theme_dir, f'scenarios_{language}.json'), 'r', encoding = 'utf-8') as file:
+        scenarios = json.load(file)
+    return {
+        name: Scenario(**scenario)
+        for name, scenario in scenarios.items()
+    }
+
+def read_criterias(metrics_dir: str, language: str) -> Tuple[Criteria, Dict[str, Criteria]]:
+
+    with open(os.path.join(metrics_dir, f'metrics_{language}_whiten.json'), 'r', encoding = 'utf-8') as file:
+        eval_metrics = json.load(file)
+    criteria = Criteria(list(eval_metrics.values()))
+
+    with open(os.path.join(metrics_dir, 'metrics_map.json'), 'r', encoding = 'utf-8') as file:
+        metrics_map = json.load(file)
+    criteria_map = {
+        scenario: Criteria([eval_metrics[idx] for idx in criteria_idxs])
+        for scenario, criteria_idxs in metrics_map.items()
+    }
+    return criteria, criteria_map
+
 class Dataset():
-    pass
+    language: Literal['zh', 'en']
+    scenarios: Dict[str, Scenario]
+    criteria: Criteria
+    criteria_map: Dict[str, Criteria]
+    
+    def __init__(self, language: Literal['zh', 'en'] = 'zh') -> None:
+        self.language = language
+        self.scenarios = read_scenarios('./data/scenario', language)
+        self.criteria, self.criteria_map = read_criterias('./data/criteria', language)
 
 class EvaluationDataset(Dataset):
     inputs: List[Messages]
     labels: Dict[str, List[EvalScores]]
 
-    def __init__(self, eval_path: str, language: str = 'zh') -> None:
-        super().__init__()
-        self.scenarios = read_scenarios('./data/scenario', language)
-        self.criterias = read_criterias('./data/criteria', language)  
+    def __init__(
+        self,
+        eval_path: str = None,
+        language: Literal['zh', 'en'] = 'zh'
+    ) -> None:
+        super().__init__(language)
+
+        if eval_path is None:
+            self.inputs, self.labels = [], {}
+            return
         self.eval_datas = read_jsonl(eval_path)
 
-class EvaluationFullCriteria(EvaluationDataset):
-
-    def __init__(self, eval_path: str, language: str = 'zh') -> None:
-        super().__init__(eval_path, language)
-
         human_eval_datas = {}
         evals = []
         for eval_data in self.eval_datas:
-
             if not eval_data['eval'].startswith('human_'):
                 continue
-            
             if eval_data['id'] not in human_eval_datas:
-                scenario = self.scenarios[eval_data['task']]
                 messages = Messages(eval_data['message'])
                 messages.source = eval_data['gen']
-                messages.meta_data = {
-                    'id': eval_data['id'],
-                    'task': eval_data['task'],
-                    'scenario': scenario,
-                    'criteria': self.criterias[scenario['task']],
-                }
+                messages.metadata = MetaData(
+                    id = eval_data['id'],
+                    task = eval_data['task'],
+                    scenario = self.scenarios[eval_data['task']],
+                    criteria = self.criteria_map[eval_data['task']],
+                )
                 human_eval_datas[eval_data['id']] = {'messages': messages}
             if eval_data['eval'] not in evals:
                 evals.append(eval_data['eval'])
@@ -49,39 +77,33 @@ class EvaluationFullCriteria(EvaluationDataset):
             for eval in evals:
                 self.labels[eval].append(data[eval])
 
-
-class EvaluationSingleCriterion(EvaluationDataset):
-    inputs: List[Messages]
-    labels: Dict[str, List[EvalScores]]
-
-    def __init__(self, eval_path: str, language: str = 'zh') -> None:
-        super().__init__(eval_path, language)
-
-        human_eval_datas = {}
-        evals = []
-        for eval_data in self.eval_datas:
-
-            if not eval_data['eval'].startswith('human_'):
-                continue
-            
-            if eval_data['id'] not in human_eval_datas:
-                scenario = self.scenarios[eval_data['task']]
-                messages = Messages(eval_data['message'])
-                messages.source = eval_data['gen']
-                messages.meta_data = {
-                    'id': eval_data['id'],
-                    'task': eval_data['task'],
-                    'scenario': scenario,
-                    'criteria': self.criterias[scenario['task']],
-                }
-                human_eval_datas[eval_data['id']] = {'messages': messages}
-            if eval_data['eval'] not in evals:
-                evals.append(eval_data['eval'])
-            human_eval_datas[eval_data['id']][eval_data['eval']] = EvalScores(eval_data['scores'])
-
-        self.inputs = []
-        self.labels = {eval: [] for eval in evals}
-        for id, data in human_eval_datas.items():
-            self.inputs.append(data['messages'])
-            for eval in evals:
-                self.labels[eval].append(data[eval])
+    def __len__(self) -> int:
+        return len(self.inputs)
+    
+    def __getitem__(self, idx: int) -> Tuple[Messages, Dict[str, EvalScores]]:
+        return self.inputs[idx], {
+            eval_name: scores_list[idx]
+            for eval_name, scores_list in self.labels.items()
+        }
+    
+    def __iter__(self):
+        for idx in range(len(self)):
+            yield self[idx]
+    
+    def sub_criterion(self, criterion_name: str) -> 'EvaluationDataset':
+        sub_dataset = self.__class__(language = self.language)
+        sub_dataset.labels = {eval: [] for eval in self.labels.keys()}
+        for messages, scores_dict in self:
+            criterion = messages.metadata.criteria[criterion_name]
+            if criterion is not None:
+                input = messages.deepcopy()
+                input.metadata.criteria = Criteria([criterion])
+                sub_dataset.inputs.append(input)
+                for eval_name, scores in scores_dict.items():
+                    single_scores = EvalScores([scores[criterion_name]])
+                    single_scores.source = scores.source
+                    sub_dataset.labels[eval_name].append(single_scores)
+        return sub_dataset
+    
+    def get_task(self, task: str) -> 'EvaluationDataset':
+        pass

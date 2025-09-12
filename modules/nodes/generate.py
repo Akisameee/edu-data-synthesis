@@ -44,8 +44,8 @@ class UserGenerate(Node):
     ) -> Messages:
         
         prompt = user_generate_template.format(
-            scenario = messages.meta_data['scenario'],
-            meta_data = messages.meta_data['meta_data'],
+            scenario = messages.metadata['scenario'],
+            meta_data = messages.metadata['meta_data'],
             message = messages.to_json()
         )
 
@@ -63,7 +63,7 @@ class UserGenerate(Node):
         messages.append(Message(
             role = 'user',
             content = self.replace_meta_data(
-                json_obj['content'], messages.meta_data['meta_data']
+                json_obj['content'], messages.metadata['meta_data']
             )
         ))
         return messages
@@ -107,7 +107,7 @@ class ResponseAggregate(Node):
         responses = [messages[-1] for messages in messages_list]
 
         prompt = response_aggregate_template.format(
-            scenario = messages_list[0].meta_data['scenario'],
+            scenario = messages_list[0].metadata['scenario'],
             history = history
         ) + '\n' + ''.join([f'Response {idx}:\n{response}\n' for idx, response in enumerate(responses)])
         

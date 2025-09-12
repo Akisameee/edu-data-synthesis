@@ -10,11 +10,11 @@ class Evaluate(Node):
     max_indegree = 1
 
     @staticmethod
-    def check_scores(scores: list, criteria: list):
+    def check_scores(scores: List[Dict[str, float | str]], criteria: Criteria):
 
         extra_criteria = []
         for score in scores:
-            criterion = [c['metric'] for c in criteria if score['criterion'] in c['metric']]
+            criterion = [c.name for c in criteria if score['criterion'] in c.name]
             if len(criterion) > 1:
                 invalid_criteria = score['criterion']
                 raise ValueError(f'[Score Parse Error] Invalid criteria: {invalid_criteria}.')
@@ -30,9 +30,9 @@ class Evaluate(Node):
         scores = [score for score in scores if score['criterion'] not in extra_criteria]
             
         if set(score['criterion'] for score in scores) != \
-            set(c['metric'] for c in criteria):
+            set(c.name for c in criteria):
             invalid_criteria = [score['criterion'] for score in scores]
-            required_criteria = [c['metric'] for c in criteria]
+            required_criteria = [c.name for c in criteria]
             raise ValueError(f'[Score Parse Error] Invalid criteria: {invalid_criteria}, required: {required_criteria}.')
         
         return scores
@@ -43,9 +43,9 @@ class Evaluate(Node):
         messages: Messages,
     ) -> Messages:
         prompt = evaluation_template.format(
-            scenario = messages.meta_data['scenario'],
+            scenario = messages.metadata.scenario.__dict__,
             message = messages.to_json(),
-            criteria = messages.meta_data['criteria']
+            criteria = messages.metadata.criteria.to_json()
         )
 
         completion = await self.llm.get_response(
@@ -56,7 +56,7 @@ class Evaluate(Node):
         response = completion.choices[0].message.content.strip()
 
         scores = extract_json(response)
-        self.check_scores(scores, messages.meta_data['criteria'])
+        self.check_scores(scores, messages.metadata.criteria)
         scores = EvalScores([EvalScore(**score) for score in scores])
         scores.source = self.llm.model_name
         messages.scores = scores
@@ -162,11 +162,11 @@ class EvaluateSingle(Node):
         messages: Messages
     ) -> Messages:
         scores = []
-        for criterion in messages.meta_data['criteria']:
+        for criterion in messages.metadata.criteria:
             prompt = evaluation_single_template.format(
-                scenario = messages.meta_data['scenario'],
+                scenario = messages.metadata.scenario.__dict__,
                 message = messages.to_json(),
-                criterion = criterion
+                criterion = criterion.__dict__
             )
 
             completion = await self.llm.get_response(
@@ -177,7 +177,7 @@ class EvaluateSingle(Node):
             response = completion.choices[0].message.content.strip()
             scores.append(extract_json(response))
 
-        Evaluate.check_scores(scores, messages.meta_data['criteria'])
+        Evaluate.check_scores(scores, messages.metadata.criteria)
         scores = EvalScores([EvalScore(**score) for score in scores])
         scores.source = self.llm.model_name
         messages.scores = scores
@@ -188,11 +188,11 @@ class EvaluateSingle(Node):
         messages: Messages
     ) -> Messages:
         scores = []
-        for criterion in messages.meta_data['criteria']:
+        for criterion in messages.metadata.criteria:
             prompt = evaluation_single_template.format(
-                scenario = messages.meta_data['scenario'],
+                scenario = messages.metadata.scenario.__dict__,
                 message = messages.to_json(),
-                criterion = criterion
+                criterion = criterion.__dict__
             )
 
             rewards = []
@@ -213,7 +213,7 @@ class EvaluateSingle(Node):
             rewards.sort(key = lambda r: r['reward'], reverse = True)
             scores.append(rewards[0]['response'])
 
-        Evaluate.check_scores(scores, messages.meta_data['criteria'])
+        Evaluate.check_scores(scores, messages.metadata.criteria)
         scores = EvalScores([EvalScore(**score) for score in scores])
         scores.source = self.llm.model_name
         messages.scores = scores

@@ -3,7 +3,6 @@ import numpy as np
 import sys
 sys.path.insert(0, '..')
 
-from modules.base import Base_LLM
 from modules.models import Base_LLM
 from modules.nodes.base import *
 from modules.nodes.prompt_templates import *
@@ -24,14 +23,14 @@ class EvaluationAverage(Node):
         
         messages = messages_list[0]
         scores_avg = []
-        for criterion in messages.scores.criteria:
+        for criterion in messages.scores.names:
             scores_avg.append(EvalScore(
                 criterion = criterion,
                 score = sum([
-                    msgs.scores.get_score(criterion).score for msgs in messages_list
+                    msgs.scores[criterion].score for msgs in messages_list
                 ]) / len(messages_list),
                 reason = '\n'.join([
-                    msgs.scores.get_score(criterion).reason for msgs in messages_list
+                    msgs.scores[criterion].reason for msgs in messages_list
                 ])
             ))
         messages.scores = EvalScores(scores_avg)
@@ -52,12 +51,12 @@ class EvaluationMax(Node):
         
         messages = messages_list[0]
         scores_max = []
-        for criterion in messages.scores.criteria:
-            max_idx = np.argmax([msgs.scores.get_score(criterion).score for msgs in messages_list])
+        for criterion in messages.scores.names:
+            max_idx = np.argmax([msgs.scores[criterion].score for msgs in messages_list])
             scores_max.append(EvalScore(
                 criterion = criterion,
-                score = messages_list[max_idx].scores.get_score(criterion).score,
-                reason = messages_list[max_idx].scores.get_score(criterion).reason
+                score = messages_list[max_idx].scores[criterion].score,
+                reason = messages_list[max_idx].scores[criterion].reason
             ))
         messages.scores = EvalScores(scores_max)
         return messages
@@ -77,12 +76,12 @@ class EvaluationMin(Node):
         
         messages = messages_list[0]
         scores_min = []
-        for criterion in messages.scores.criteria:
-            max_idx = np.argmin([msgs.scores.get_score(criterion).score for msgs in messages_list])
+        for criterion in messages.scores.names:
+            max_idx = np.argmin([msgs.scores[criterion].score for msgs in messages_list])
             scores_min.append(EvalScore(
                 criterion = criterion,
-                score = messages_list[max_idx].scores.get_score(criterion).score,
-                reason = messages_list[max_idx].scores.get_score(criterion).reason
+                score = messages_list[max_idx].scores[criterion].score,
+                reason = messages_list[max_idx].scores[criterion].reason
             ))
         messages.scores = EvalScores(scores_min)
         return messages
@@ -97,11 +96,11 @@ class EvaluationAggregation(Node):
         if len(messages_list) == 1:
             return messages_list[0]
 
-        messages = messages_list[0].copy()
+        messages = messages_list[0].deepcopy()
         prompt = evaluation_aggregate_template.format(
-            scenario = messages.meta_data['scenario'],
+            scenario = messages.metadata.scenario.__dict__,
             message = messages.to_json(),
-            criteria = messages.meta_data['criteria']
+            criteria = messages.metadata.criteria.to_json()
         ) + '\n' + ''.join([
             f'Scores {idx}:\n{msgs.scores.to_json()}\n'
             for idx, msgs in enumerate(messages_list)
@@ -113,7 +112,7 @@ class EvaluationAggregation(Node):
         response = completion.choices[0].message.content.strip()
 
         scores = extract_json(response)
-        Evaluate.check_scores(scores, messages.meta_data['criteria'])
+        Evaluate.check_scores(scores, messages.metadata.criteria.to_json())
         scores = EvalScores(scores)
         scores.source = self.llm.model_name
         messages.scores = scores
@@ -130,7 +129,7 @@ class EvaluationVoting(Node):
         if len(messages_list) == 1:
             return messages_list[0]
 
-        messages = messages_list[0].copy()
+        messages = messages_list[0].deepcopy()
         random.shuffle(messages_list)
         scores_dict: Dict[str, EvalScores] = {
             chr(65 + idx): msgs.scores
@@ -138,9 +137,9 @@ class EvaluationVoting(Node):
         }
 
         prompt = evaluation_voting_template.format(
-            scenario = messages.meta_data['scenario'],
+            scenario = messages.metadata.scenario.__dict__,
             message = messages.to_json(),
-            criteria = messages.meta_data['criteria']
+            criteria = messages.metadata.criteria.to_json()
         ) + '\n' + ''.join([f'{choice}. {scores.to_json()}\n' for choice, scores in scores_dict.items()])
         
         completion = await self.llm.get_response(
@@ -168,11 +167,11 @@ class Debate(Node):
         if len(messages_list) == 1:
             return messages_list[0]
         
-        messages = messages_list[0].copy()
+        messages = messages_list[0].deepcopy()
         contexts = evaluation_template.format(
-            scenario = messages.meta_data['scenario'],
+            scenario = messages.metadata.scenario.__dict__,
             message = messages.to_json(),
-            criteria = messages.meta_data['criteria']
+            criteria = messages.metadata.criteria.to_json()
         )
 
         cost = 0
@@ -196,7 +195,7 @@ class Debate(Node):
             response = completion.choices[0].message.content.strip()
 
             scores = extract_json(response)
-            Evaluate.check_scores(scores, messages.meta_data['criteria'])
+            Evaluate.check_scores(scores, messages.metadata.criteria.to_json())
             messages_list[idx].scores = EvalScores([EvalScore(**score) for score in scores])
             # print(response_list[idx].to_json())
         

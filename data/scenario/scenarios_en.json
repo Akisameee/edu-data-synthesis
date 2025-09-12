@@ -1,0 +1,38 @@
+{
+    "problem_solving": {
+        "task": "Problem Solving",
+        "description": "The user provides a question, and the assistant answers it."
+    },
+    "error_correction": {
+        "task": "Error Correction",
+        "description": "The user provides a question and an incorrect answer, and the assistant identifies the error, provides an explanation, and makes corrections."
+    },
+    "idea_provision": {
+        "task": "Idea Provision",
+        "description": "The user has doubts about a certain question or knowledge point, and the assistant provides ideas, explains principles, and answers the questions."
+    },
+    "personalized_learning_support": {
+        "task": "Personalized Learning Support",
+        "description": "The user provides a student profile, and the assistant designs a learning path."
+    },
+    "psychological_support": {
+        "task": "Psychological Support",
+        "description": "The user describes a problem, and the assistant provides psychological counseling to the user."
+    },
+    "question_generation": {
+        "task": "Question Generation",
+        "description": "The user provides information such as educational level, subject, and knowledge points, and the assistant generates questions according to the given requirements."
+    },
+    "automatic_grading": {
+        "task": "Automated Grading",
+        "description": "The user provides a question and an answer, and the assistant judges whether the answer is correct or incorrect and provides reasons."
+    },
+    "teaching_material_generation": {
+        "task": "Teaching Material Generation",
+        "description": "The user provides information such as educational level, subject, and knowledge points, and the assistant generates teaching materials according to the given requirements."
+    },
+    "personalized_content_creation": {
+        "task": "Personalized Content Creation",
+        "description": "The user provides a student profile, and the assistant plans teaching suggestions."
+    }
+}

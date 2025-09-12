@@ -1,6 +1,6 @@
 {
     "problem_solving": {
-        "task": "回答问题",
+        "task": "问题解答",
         "description": "user给出一个题目，assistant解答题目"
     },
     "error_correction": {
@@ -15,7 +15,7 @@
         "task": "学习路径设计",
         "description": "user给出学生画像，assistant设计学习路径"
     },
-    "emotional_support": {
+    "psychological_support": {
         "task": "心理辅导",
         "description": "user说明问题，assistant对user进行心理辅导"
     },

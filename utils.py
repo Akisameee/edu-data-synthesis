@@ -27,7 +27,7 @@ def perpare_eval_datas() -> Tuple[List[Messages], Dict[str, List[EvalScores]]]:
             scenario = scenarios[eval_data['task']]
             messages = Messages(eval_data['message'])
             messages.source = eval_data['gen']
-            messages.meta_data = {
+            messages.metadata = {
                 'id': eval_data['id'],
                 'task': eval_data['task'],
                 'scenario': scenario,

@@ -11,7 +11,9 @@ from utils import *
 
 if __name__ == '__main__':
 
-    val_dataset = EvaluationFullCriteria('./eval_res/sub_eval_samples.jsonl')
+    val_dataset = EvaluationDataset('./eval_res/sub_eval_samples.jsonl')
+    for c in val_dataset.criteria:
+        sub_dataset = val_dataset.sub_criterion(c.name)
 
     eval_workflow = EvaluationWorkflow()
     eval_workflow.add_node('evaluate_0', Evaluate('deepseek-v3'))

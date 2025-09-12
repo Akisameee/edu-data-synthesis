@@ -7,7 +7,6 @@ import functools
 from tqdm import tqdm
 
 def yield_json_files(root_dir: str):
-
     for walk_res in os.walk(root_dir):
         for filename in walk_res[2]:
             file_path = os.path.join(walk_res[0], filename)
@@ -15,12 +14,9 @@ def yield_json_files(root_dir: str):
                 yield file_path
 
 def extract_json(response: str):
-
     match = re.search(r'```json\s*(.*)\s*```', response, re.DOTALL)
-
     if match:
         json_str = match.group(1)
-
         try:
             json_obj = json.loads(json_str)
             return json_obj 
@@ -35,8 +31,6 @@ def extract_json(response: str):
         # raise ValueError(f'[JSON Parse Error] Code block not found. Invalid response: {response}')
 
 def fix_json_close(json_str: str):
-
-    # close_map = {'[': ']', '{': '}'}
     close_prefix, close_suffix = [], []
     for idx in range(len(json_str)):
         if json_str[idx] in ['[', '{']:
@@ -51,11 +45,9 @@ def fix_json_close(json_str: str):
         json_str = json_str[len(close_prefix) - len(close_suffix):]
     elif len(close_prefix) < len(close_suffix):
         json_str = json_str[: -(len(close_suffix) - len(close_prefix))]
-
     return json.loads(json_str)
 
 def extract_boxed(response: str):
-
     pattern = r"\\boxed{(.*)}"
     match = re.search(pattern, response)
     if match:
@@ -66,33 +58,9 @@ def extract_boxed(response: str):
             raise ValueError(f'[Boxed Parse Error] Invalid boxed string: {boxed_str}')
     else:
         ValueError(f'[Boxed Parse Error] \\boxed not found. Invalid response: {response}')
-    
-def read_criterias(metrics_dir: str, language: str):
-
-    # with open(os.path.join(metrics_dir, 'evaluation_metrics_old.json'), 'r', encoding = 'utf-8') as file:
-    with open(os.path.join(metrics_dir, f'principles_{language}_whiten.json'), 'r', encoding = 'utf-8') as file:
-        eval_metrics = json.load(file)
-    with open(os.path.join(metrics_dir, 'metrics_map.json'), 'r', encoding = 'utf-8') as file:
-        metrics_map = json.load(file)
-
-    criterias = {
-        theme: [eval_metrics[re.sub(r'\(.*\)', '', metric).strip()] for metric in metrics]
-        for theme, metrics in metrics_map.items()
-    }
-
-    return criterias
-
-def read_scenarios(theme_dir: str, language: str):
-
-    with open(os.path.join(theme_dir, f'{language}_scenario.json'), 'r', encoding = 'utf-8') as file:
-        scenarios = json.load(file)
-
-    return scenarios
 
 def inspect_method(cls, method_name: str) -> List[Tuple[str, Optional[type]]]:
-
     methods = inspect.getmembers(cls, predicate=inspect.isfunction)
-    
     params = []
     for name, method in methods:
         if name == method_name:
@@ -103,11 +71,9 @@ def inspect_method(cls, method_name: str) -> List[Tuple[str, Optional[type]]]:
             for param_name, param in parameters.items():
                 param_type = type_hints.get(param_name, None)
                 params.append((param_name, param_type))
-
     return params
 
 def read_jsonl(path: str):
-
     json_objs = []
     with open(path, 'r', encoding = 'utf-8') as file:
         for idx, line in enumerate(file.readlines()):
@@ -116,17 +82,14 @@ def read_jsonl(path: str):
                 json_objs.append(json_obj)
             except Exception as e:
                 print(f'Line: {idx}, Error: {e}')
-
     return json_objs
 
 def write_jsonl(path: str, json_objs: list):
-
     with open(path, 'w', encoding = 'utf-8') as file:
         for json_obj in json_objs:
             file.write(json.dumps(json_obj, ensure_ascii = False) + '\n')
 
 def read_sampled_data(language: str):
-
     datas = []
     zh_dir = f'./data_raw/{language}_data_sampled/'
     for path in os.listdir(zh_dir):
@@ -134,7 +97,6 @@ def read_sampled_data(language: str):
             data = json.load(file)
             data['language'] = language
             datas.append(data)
-
     return datas
 
 def retry(

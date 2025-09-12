@@ -19,6 +19,7 @@ from modules.nodes import *
 from modules.nodes.prompt_templates import *
 from modules.datas import *
 from modules.utils import *
+
 class Workflow:
 
     def __init__(self) -> None:
@@ -204,10 +205,10 @@ class Workflow:
         for name in topo_order:
             node = self.nodes[name]
             if name == 'input':
-                input_data = messages.copy()
+                input_data = messages.deepcopy()
             else:
                 parent_names = [p for p in self.parents(name)]
-                parent_outputs = [call_results[parent].copy() for parent in parent_names]
+                parent_outputs = [call_results[parent].deepcopy() for parent in parent_names]
                 if node.max_indegree == 1:
                     if len(parent_outputs) != 1:
                         raise ValueError(f"Node {name} expects single input but has {len(parent_outputs)} parents")
@@ -298,7 +299,7 @@ class EvaluationWorkflow(Workflow):
 
     async def evaluate(
         self,
-        dataset: EvaluationFullCriteria,
+        dataset: EvaluationDataset,
         max_parallel: int = 8
     ) -> Tuple[float, float]:
         semaphore = asyncio.Semaphore(max_parallel)

@@ -2,19 +2,21 @@ from tqdm import tqdm
 from copy import deepcopy
 import random
 import functools
-from typing import Literal, List, Dict, Generic, TypeVar, Optional
+from typing import Literal, List, Dict, Set, Generic, TypeVar, Optional, Any, get_args
 from dataclasses import dataclass, field
 
 import sys
 sys.path.insert(0, '..')
 
-from modules.models import Base_LLM
-
 T = TypeVar('T')
 
 class GenericList(Generic[T]):
-
-    def __init__(self, items: List[T]): self._items = items
+    def __init__(self, items: List[T] | List[Dict[str, Any]]):
+        self._item_type = self.__orig_bases__[0].__args__[0]
+        if len(items) == 0: self._items = []
+        elif isinstance(items[0], dict): self._items = [self._item_type(**item) for item in items]
+        elif isinstance(items[0], self._item_type): self._items = items.copy()
+        else: raise TypeError(f'Invalid item type: {items[0].__class__.__name__}.')
     def __len__(self) -> int: return len(self._items)
     def __getitem__(self, idx: int) -> T: return self._items[idx]
     def __iter__(self): yield from self._items
@@ -25,6 +27,37 @@ class GenericList(Generic[T]):
     def __add__(self, other: 'GenericList[T]'): return GenericList(self._items + other._items)
 
 @dataclass
+class Scenario:
+    task: str
+    description: str
+
+@dataclass
+class Criterion:
+    name: str
+    description: str
+    levels: List[str]
+
+class Criteria(GenericList[Criterion]):
+    
+    def __getitem__(self, key: int | str) -> Optional[Criterion]:
+        if isinstance(key, int):
+            return super().__getitem__(key)
+        elif isinstance(key, str):
+            for item in self._items:
+                if item.name == key:
+                    return item
+            return None
+        else:
+            raise TypeError(f'Invalid key type: {key}.')
+
+@dataclass
+class MetaData:
+    id: str
+    task: str
+    scenario: Scenario
+    criteria: Criteria
+
+@dataclass
 class EvalScore:
     criterion: str
     score: int | float
@@ -32,29 +65,30 @@ class EvalScore:
 
 class EvalScores(GenericList[EvalScore]):
     source: str = None
-
-    def __init__(self, items: List[EvalScore] | List[Dict[str, int | float]]):
-        if len(items) == 0:
-            self._items = []
-        elif isinstance(items[0], dict):
-            self._items = [EvalScore(**score) for score in items]
-        elif isinstance(items[0], EvalScore):
-            self._items = items.copy()
-        else:
-            raise TypeError('Invalid score type.')
         
     @property
-    def criteria(self) -> List[str]:
+    def names(self) -> List[str]:
         return [score.criterion for score in self._items]
 
     def sum(self) -> float:
         return sum([score.score for score in self._items])
 
-    def get_score(self, criterion: str) -> Optional[EvalScore]:
+    def get_score(self, criterion_name: str) -> Optional[EvalScore]:
         for score in self._items:
-            if score.criterion == criterion:
+            if score.criterion == criterion_name:
                 return score
         return None
+    
+    def __getitem__(self, key: int | str) -> Optional[EvalScore]:
+        if isinstance(key, int):
+            return super().__getitem__(key)
+        elif isinstance(key, str):
+            for item in self._items:
+                if item.criterion == key:
+                    return item
+            return None
+        else:
+            raise TypeError(f'Invalid key type: {key}.')
 
     def update(self, other: 'EvalScores') -> None:
         criterion_idxs = {scores.criterion: idx for idx, scores in enumerate(self._items)}
@@ -63,6 +97,9 @@ class EvalScores(GenericList[EvalScore]):
                 self._items[criterion_idxs[scores.criterion]] = scores
             else:
                 self.append(scores)
+    
+    def deepcopy(self) -> 'EvalScores':
+        return deepcopy(self)
 
 MessagesState = Literal['system', 'user', 'assistant', 'scored']
 @dataclass
@@ -71,20 +108,10 @@ class Message:
     content: str
 
 class Messages(GenericList[Message]):
+    metadata: MetaData
     source: str = None
     scores: EvalScores = None
-    meta_data: dict = {}
     cost: Dict[str, float] = {}
-
-    def __init__(self, items: List[Message] | List[Dict[str, str]]):
-        if len(items) == 0:
-            self._items = []
-        elif isinstance(items[0], dict):
-            self._items = [Message(**message) for message in items]
-        elif isinstance(items[0], Message):
-            self._items = items.copy()
-        else:
-            raise TypeError('Invalid message type.')
 
     @property
     def state(self) -> MessagesState:
@@ -106,8 +133,8 @@ class Messages(GenericList[Message]):
     def pop(self, idx: int = -1) -> Message:
         if self.state == 'scored':
             self.scores = None
-        msg = self._items.pop(idx)
-        return msg
+        message = self._items.pop(idx)
+        return message
     
-    def copy(self) -> 'Messages':
+    def deepcopy(self) -> 'Messages':
         return deepcopy(self)
