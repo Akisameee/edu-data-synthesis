@@ -1,12 +1,12 @@
 import numpy as np
+import random
 
 import sys
 sys.path.insert(0, '..')
 
-from modules.models import Base_LLM
 from modules.nodes.base import *
+from modules.nodes.utils import *
 from modules.nodes.prompt_templates import *
-from modules.nodes.evaluate import Evaluate
 
 class EvaluationAverage(Node):
     input_state = 'scored'
@@ -112,8 +112,8 @@ class EvaluationAggregation(Node):
         response = completion.choices[0].message.content.strip()
 
         scores = extract_json(response)
-        Evaluate.check_scores(scores, messages.metadata.criteria.to_json())
-        scores = EvalScores(scores)
+        scores = check_scores(scores, messages.metadata.criteria.to_json())
+
         scores.source = self.llm.model_name
         messages.scores = scores
         messages.cost[self.name] = self.llm.cost(completion)
@@ -195,8 +195,7 @@ class Debate(Node):
             response = completion.choices[0].message.content.strip()
 
             scores = extract_json(response)
-            Evaluate.check_scores(scores, messages.metadata.criteria.to_json())
-            messages_list[idx].scores = EvalScores([EvalScore(**score) for score in scores])
+            messages_list[idx].scores = (scores, messages.metadata.criteria.to_json())
             # print(response_list[idx].to_json())
         
         for msgs in messages_list:

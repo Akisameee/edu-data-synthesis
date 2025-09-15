@@ -14,9 +14,13 @@ if __name__ == '__main__':
     # val_dataset = EvaluationDataset('./eval_res/sub_eval_samples.jsonl')
     val_dataset = val_dataset.sub_criterion(val_dataset.criteria[0].name)
 
-    eval_workflow = EvaluationWorkflow()
-    eval_workflow.add_node('evaluate_0', Evaluate(get_model('deepseek-v3')))
-    eval_workflow.add_edge('input', 'evaluate_0')
-    eval_workflow.add_edge('evaluate_0', 'output')
-    score = asyncio.run(eval_workflow.evaluate(val_dataset))
+    print(EvaluationWorkflow.calculate_correlation(
+        val_dataset.labels['human_1'], val_dataset.labels['human_2']
+    ))
+    print(EvaluationWorkflow.calculate_correlation(
+        val_dataset.labels['human_2'], val_dataset.labels['human_3']
+    ))
+    print(EvaluationWorkflow.calculate_correlation(
+        val_dataset.labels['human_1'], val_dataset.labels['human_3']
+    ))
     

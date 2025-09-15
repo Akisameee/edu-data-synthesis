@@ -1,2 +1,2 @@
 # edu-data-synthesis
-Data Synthesis in Educational Scenarios
+Data Synthesis/Evaluation in Educational Scenarios

@@ -1,17 +1,40 @@
 from tqdm import tqdm
 from copy import deepcopy
-import random
-import functools
-from typing import Literal, List, Dict, Generic, TypeVar, ClassVar, get_origin
-from dataclasses import dataclass, field
+from string import Formatter
 
 import sys
 sys.path.insert(0, '..')
 
 from modules.models import *
 from modules.base import *
-from modules.utils import *
 
+class Template:
+    template: str
+    keys: Set[str]
+
+    def __init__(self, template_path: str) -> None:
+        with open(template_path, 'r', encoding = 'utf-8') as f:
+            self.template = f.read()
+        formatter = Formatter()
+        self.keys = set()
+        for _, key, _, _ in formatter.parse(self.template):
+            if key is not None:
+                self.keys.add(key)
+
+    def format(self, messages: Messages, **kwargs) -> str:
+        for key in self.keys:
+            if key in kwargs:
+                continue
+            elif key == 'messages':
+                kwargs[key] = messages.to_json()
+            elif key == 'scenario':
+                kwargs[key] = messages.metadata.scenario.to_md(1)
+            elif key == 'criteria':
+                kwargs[key] = messages.metadata.criteria.to_md(1)
+            else:
+                raise KeyError(f'Failed to format template with key={key}.')
+        return self.template.format(**kwargs)
+    
 class Node():
     name: str = None
     input_state: MessagesState = None

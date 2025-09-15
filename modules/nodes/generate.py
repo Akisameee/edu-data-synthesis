@@ -2,6 +2,7 @@ import sys
 sys.path.insert(0, '..')
 
 from modules.nodes.base import *
+from modules.nodes.utils import *
 from modules.nodes.prompt_templates import *
 
 class SystemGenerate(Node):

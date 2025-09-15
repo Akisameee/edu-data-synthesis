@@ -1,9 +1,9 @@
 from tqdm import tqdm
 from copy import deepcopy
-import random
+import json
 import functools
 from typing import Literal, List, Dict, Set, Generic, TypeVar, Optional, Any, get_args
-from dataclasses import dataclass, field
+from dataclasses import dataclass, fields, is_dataclass
 
 import sys
 sys.path.insert(0, '..')
@@ -23,21 +23,70 @@ class GenericList(Generic[T]):
     def append(self, item: T) -> None: self._items.append(item)
     def pop(self, idx: int = -1) -> T: return self._items.pop(idx)
     def to_json(self) -> list: return [_item.__dict__ for _item in self._items]
+    def to_md(self, indent: int = 0) -> str:
+        return '\n'.join([
+            '  ' * indent + f'- [{idx}]\n{item.to_md(indent + 1)}'
+            for idx, item in enumerate(self._items)
+        ])
     def __eq__(self, other: 'GenericList[T]'): return all(a == b for a, b in zip(self._items, other._items))
     def __add__(self, other: 'GenericList[T]'): return GenericList(self._items + other._items)
 
+class DataClassMixin:
+    def to_md(self, indent: int = 0) -> str:
+        indent_space = '  ' * indent
+        result = []
+        for field in fields(self):
+            value = getattr(self, field.name)
+            if is_dataclass(value):
+                result.append(f'{indent_space}- {field.name}:')
+                result.append(value.to_md(indent + 1))
+            elif isinstance(value, (list, tuple)):
+                result.append(f'{indent_space}- {field.name}:')
+                for i, item in enumerate(value):
+                    if is_dataclass(item):
+                        result.append(f'{indent_space}  - ')
+                        result.append(item.to_md(indent + 1))
+                    else:
+                        result.append(f'{indent_space}  - {self._format_value(item)}')
+            elif isinstance(value, dict):
+                result.append(f'{indent_space}- {field.name}:')
+                for k, v in value.items():
+                    if is_dataclass(v):
+                        result.append(f'{indent_space}  - {k}:')
+                        result.append(v.to_md(indent + 1))
+                    else:
+                        result.append(f'{indent_space}  - {k}: {self._format_value(v)}')
+            else:
+                result.append(f'{indent_space}- {field.name}: {self._format_value(value)}')
+        return '\n'.join(result)
+
+    def _format_value(self, value: Any) -> str:
+        if value is None:
+            return 'null'
+        elif isinstance(value, (str, int, float, bool)):
+            return str(value)
+        else:
+            try:
+                return json.dumps(value, ensure_ascii=False)
+            except (TypeError, ValueError):
+                return str(value)
+
 @dataclass
-class Scenario:
+class Scenario(DataClassMixin):
     task: str
     description: str
 
 @dataclass
-class Criterion:
+class Criterion(DataClassMixin):
     name: str
     description: str
-    levels: List[str]
+    rules: List[str]
 
 class Criteria(GenericList[Criterion]):
+
+    @property
+    def names(self) -> List[str]:
+        return [criterion.name for criterion in self._items]
     
     def __getitem__(self, key: int | str) -> Optional[Criterion]:
         if isinstance(key, int):
@@ -51,14 +100,15 @@ class Criteria(GenericList[Criterion]):
             raise TypeError(f'Invalid key type: {key}.')
 
 @dataclass
-class MetaData:
+class MetaData(DataClassMixin):
     id: str
+    language: Literal['zh', 'en']
     task: str
     scenario: Scenario
     criteria: Criteria
 
 @dataclass
-class EvalScore:
+class EvalScore(DataClassMixin):
     criterion: str
     score: int | float
     reason: str
@@ -103,7 +153,7 @@ class EvalScores(GenericList[EvalScore]):
 
 MessagesState = Literal['system', 'user', 'assistant', 'scored']
 @dataclass
-class Message:
+class Message(DataClassMixin):
     role: Literal['system', 'user', 'assistant']
     content: str
 

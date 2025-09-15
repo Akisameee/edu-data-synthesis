@@ -2,62 +2,51 @@ import sys
 sys.path.insert(0, '..')
 
 from modules.nodes.base import *
+from modules.nodes.utils import *
+from modules.datas import EvaluationDataset
 from modules.nodes.prompt_templates import *
+
+evaluate_sys_template = Template('./modules/nodes/evaluate/evaluate_system.md')
+evaluate_user_template = Template('./modules/nodes/evaluate/evaluate_user.md')
+evaluate_single_sys_template = Template('./modules/nodes/evaluate/single_system.md')
+evaluate_single_user_template = Template('./modules/nodes/evaluate/single_user.md')
 
 class Evaluate(Node):
     input_state = 'assistant'
     output_state = 'scored'
     max_indegree = 1
-
-    @staticmethod
-    def check_scores(scores: List[Dict[str, float | str]], criteria: Criteria):
-
-        extra_criteria = []
-        for score in scores:
-            criterion = [c.name for c in criteria if score['criterion'] in c.name]
-            if len(criterion) > 1:
-                invalid_criteria = score['criterion']
-                raise ValueError(f'[Score Parse Error] Invalid criteria: {invalid_criteria}.')
-            if len(criterion) == 0:
-                extra_criteria.append(score['criterion'])
-                continue
-            score['criterion'] = criterion[0]
-
-            value = score['score']
-            if not isinstance(value, (int, float)):
-                raise ValueError(f'[Score Parse Error] Invalid score value: {value}.')
-        
-        scores = [score for score in scores if score['criterion'] not in extra_criteria]
-            
-        if set(score['criterion'] for score in scores) != \
-            set(c.name for c in criteria):
-            invalid_criteria = [score['criterion'] for score in scores]
-            required_criteria = [c.name for c in criteria]
-            raise ValueError(f'[Score Parse Error] Invalid criteria: {invalid_criteria}, required: {required_criteria}.')
-        
-        return scores
     
     @retry(max_attempt = 3)
     async def __call__(
         self,
         messages: Messages,
     ) -> Messages:
-        prompt = evaluation_template.format(
-            scenario = messages.metadata.scenario.__dict__,
-            message = messages.to_json(),
-            criteria = messages.metadata.criteria.to_json()
-        )
+        if len(messages.metadata.criteria) > 1:
+            sys_prompt = evaluate_sys_template.format(messages)
+            user_prompt = evaluate_user_template.format(messages)
+        elif len(messages.metadata.criteria) == 1:
+            sys_prompt = evaluate_single_sys_template.format(messages)
+            user_prompt = evaluate_single_user_template.format(
+                messages, criterion = messages.metadata.criteria[0].to_md(1)
+            )
+        else:
+            raise ValueError('Invalid criteria.')
+        # with open('test_prompt.md', 'w', encoding='utf-8') as f:
+        #     f.write(user_prompt)
 
         completion = await self.llm.get_response(
-            messages = [{'role': 'user', 'content': prompt}, ],
+            messages = [
+                {'role': 'system', 'content': sys_prompt},
+                {'role': 'user', 'content': user_prompt},
+            ],
             temperature = 0.0
         )
         messages.cost[self.name] = self.llm.cost(completion)
         response = completion.choices[0].message.content.strip()
 
         scores = extract_json(response)
-        self.check_scores(scores, messages.metadata.criteria)
-        scores = EvalScores([EvalScore(**score) for score in scores])
+        scores = check_scores(scores, messages.metadata.criteria)
+
         scores.source = self.llm.model_name
         messages.scores = scores
         return messages
@@ -67,12 +56,9 @@ class EvaluateICL(Node):
     output_state = 'scored'
     max_indegree = 1
 
-    def __init__(self, llm: Base_LLM = None) -> None:
+    def __init__(self, llm: Base_LLM, dataset: EvaluationDataset) -> None:
         super().__init__(llm)
-        eval_samples = read_jsonl('./eval_res/eval_samples.jsonl')
-        sub_eval_samples = read_jsonl('./eval_res/sub_eval_samples.jsonl')
-        sub_eval_sample_ids = [s['id'] for s in sub_eval_samples]
-        self.samples = [s for s in eval_samples if s['id'] not in sub_eval_sample_ids]
+        self.dataset = dataset
 
     def get_human_eval_sample(self, task: str, id: str, count: int = 2):
         
@@ -80,7 +66,7 @@ class EvaluateICL(Node):
             return '_'.join(id.split('_')[:3])
         
         filtered_samples = [
-            s for s in self.samples
+            s for s in self.dataset
             if get_qid(s['id']) != id and s['task'] == task
         ]
 
@@ -135,8 +121,8 @@ class EvaluateICL(Node):
         response = completion.choices[0].message.content.strip()
 
         scores = extract_json(response)
-        Evaluate.check_scores(scores, messages.scores['criteria'])
-        scores = EvalScores([EvalScore(**score) for score in scores])
+        scores = check_scores(scores, messages.scores['criteria'])
+
         scores.source = self.llm.model_name
         messages.scores = scores
         return messages
@@ -177,8 +163,8 @@ class EvaluateSingle(Node):
             response = completion.choices[0].message.content.strip()
             scores.append(extract_json(response))
 
-        Evaluate.check_scores(scores, messages.metadata.criteria)
-        scores = EvalScores([EvalScore(**score) for score in scores])
+        scores = check_scores(scores, messages.metadata.criteria)
+
         scores.source = self.llm.model_name
         messages.scores = scores
         return messages
@@ -213,8 +199,8 @@ class EvaluateSingle(Node):
             rewards.sort(key = lambda r: r['reward'], reverse = True)
             scores.append(rewards[0]['response'])
 
-        Evaluate.check_scores(scores, messages.metadata.criteria)
-        scores = EvalScores([EvalScore(**score) for score in scores])
+        scores = check_scores(scores, messages.metadata.criteria)
+
         scores.source = self.llm.model_name
         messages.scores = scores
         return messages

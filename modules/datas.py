@@ -1,6 +1,9 @@
 from modules.utils import *
 from modules.base import *
 
+SCENARIO_DIR = './data/scenario'
+CRITERIA_DIR = './data/criteria'
+
 def read_scenarios(theme_dir: str, language: str) -> Dict[str, Scenario]:
 
     with open(os.path.join(theme_dir, f'scenarios_{language}.json'), 'r', encoding = 'utf-8') as file:
@@ -10,30 +13,46 @@ def read_scenarios(theme_dir: str, language: str) -> Dict[str, Scenario]:
         for name, scenario in scenarios.items()
     }
 
-def read_criterias(metrics_dir: str, language: str) -> Tuple[Criteria, Dict[str, Criteria]]:
-
+def read_criteria(metrics_dir: str, language: str, return_dict: bool = False) -> Criteria | Dict[str, Any]:
     with open(os.path.join(metrics_dir, f'metrics_{language}_whiten.json'), 'r', encoding = 'utf-8') as file:
         eval_metrics = json.load(file)
-    criteria = Criteria(list(eval_metrics.values()))
+    if return_dict:
+        return eval_metrics
+    else:
+        return Criteria(list(eval_metrics.values()))
 
+def read_criteria_map(metrics_dir: str, language: str) -> Tuple[Criteria, Dict[str, Criteria]]:
+    with open(os.path.join(metrics_dir, f'metrics_{language}_whiten.json'), 'r', encoding = 'utf-8') as file:
+        eval_metrics = json.load(file)
     with open(os.path.join(metrics_dir, 'metrics_map.json'), 'r', encoding = 'utf-8') as file:
         metrics_map = json.load(file)
     criteria_map = {
         scenario: Criteria([eval_metrics[idx] for idx in criteria_idxs])
         for scenario, criteria_idxs in metrics_map.items()
     }
-    return criteria, criteria_map
+    return criteria_map
 
 class Dataset():
+    name: str
     language: Literal['zh', 'en']
     scenarios: Dict[str, Scenario]
     criteria: Criteria
     criteria_map: Dict[str, Criteria]
     
-    def __init__(self, language: Literal['zh', 'en'] = 'zh') -> None:
+    def __init__(self, language: Literal['zh', 'en'] = 'en') -> None:
         self.language = language
-        self.scenarios = read_scenarios('./data/scenario', language)
-        self.criteria, self.criteria_map = read_criterias('./data/criteria', language)
+        self.scenarios = read_scenarios(SCENARIO_DIR, language)
+        self.criteria = read_criteria(CRITERIA_DIR, language)
+        self.criteria_map = read_criteria_map(CRITERIA_DIR, language)
+
+        criteria_dict = read_criteria(CRITERIA_DIR, language, True)
+        criteria_dict_other = read_criteria(
+            CRITERIA_DIR, 'zh' if language == 'en' else 'en', True
+        )
+        self.name_map = {
+            criteria_dict_other[key]['name']: criterion['name']
+            for key, criterion in criteria_dict.items()
+        }
 
 class EvaluationDataset(Dataset):
     inputs: List[Messages]
@@ -42,18 +61,26 @@ class EvaluationDataset(Dataset):
     def __init__(
         self,
         eval_path: str = None,
-        language: Literal['zh', 'en'] = 'zh'
+        language: Literal['zh', 'en'] = 'en'
     ) -> None:
         super().__init__(language)
 
         if eval_path is None:
             self.inputs, self.labels = [], {}
             return
+
+        if 'train' in eval_path:
+            self.name = 'eval_train'
+        elif 'val' in eval_path:
+            self.name = 'eval_val'
+        else:
+            raise ValueError(f'Invalid eval path: {eval_path}.')
         self.eval_datas = read_jsonl(eval_path)
 
         human_eval_datas = {}
         evals = []
         for eval_data in self.eval_datas:
+            # if eval_data['language'] == 'zh': continue
             if not eval_data['eval'].startswith('human_'):
                 continue
             if eval_data['id'] not in human_eval_datas:
@@ -61,6 +88,7 @@ class EvaluationDataset(Dataset):
                 messages.source = eval_data['gen']
                 messages.metadata = MetaData(
                     id = eval_data['id'],
+                    language = eval_data['language'],
                     task = eval_data['task'],
                     scenario = self.scenarios[eval_data['task']],
                     criteria = self.criteria_map[eval_data['task']],
@@ -68,7 +96,11 @@ class EvaluationDataset(Dataset):
                 human_eval_datas[eval_data['id']] = {'messages': messages}
             if eval_data['eval'] not in evals:
                 evals.append(eval_data['eval'])
-            human_eval_datas[eval_data['id']][eval_data['eval']] = EvalScores(eval_data['scores'])
+            scores = EvalScores(eval_data['scores'])
+            for score in scores:
+                if score.criterion not in self.criteria.names:
+                    score.criterion = self.name_map[score.criterion]
+            human_eval_datas[eval_data['id']][eval_data['eval']] = scores
 
         self.inputs = []
         self.labels = {eval: [] for eval in evals}
@@ -92,6 +124,7 @@ class EvaluationDataset(Dataset):
     
     def sub_criterion(self, criterion_name: str) -> 'EvaluationDataset':
         sub_dataset = self.__class__(language = self.language)
+        sub_dataset.name = f'{criterion_name}_{self.name}'
         sub_dataset.labels = {eval: [] for eval in self.labels.keys()}
         for messages, scores_dict in self:
             criterion = messages.metadata.criteria[criterion_name]
