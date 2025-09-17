@@ -1,11 +1,14 @@
 from tqdm import tqdm
 from copy import deepcopy
 from string import Formatter
+from langchain_core.messages import BaseMessage
+from langchain_core.tools import BaseTool
 
 import sys
 sys.path.insert(0, '..')
 
 from modules.models import *
+from modules.tools import *
 from modules.base import *
 
 class Template:
@@ -36,33 +39,37 @@ class Template:
         return self.template.format(**kwargs)
     
 class Node():
-    name: str = None
-    input_state: MessagesState = None
-    output_state: MessagesState = None
-    max_indegree: int = None
-    max_outdegree: int = None
+    name: Optional[str] = None
+    input_state: Optional[MessagesState] = None
+    output_state: Optional[MessagesState] = None
+    max_indegree: Optional[int] = None
+    max_outdegree: Optional[int] = None
 
-    def __init__(self, llm: str | Base_LLM = None) -> None:
+    llm: Optional[Base_LLM]
+    tools: Optional[List[BaseTool]]
+
+    def __init__(
+        self,
+        llm: Optional[str | Base_LLM],
+        tools: Optional[List[str]] = None
+    ) -> None:
         if llm is not None and isinstance(llm, str):
             llm = get_model(llm)
         self.llm = llm
+        if tools is not None:
+            tools = get_tools(tools)
+        self.tools = tools
 
-    # def __hash__(self) -> int:
-    #     return hash(self.to_tuple())
-
-    # def __eq__(self, other: 'Node') -> bool:
-    #     return self.to_tuple() == other.to_tuple()
-    
-    # def __gt__(self, other: 'Node') -> bool:
-    #     return self.to_tuple() > other.to_tuple()
-
-    # def __lt__(self, other: 'Node') -> bool:
-    #     return self.to_tuple() < other.to_tuple()
+    async def get_response(self, messages: List[Dict[str, str]], **kwargs) -> BaseMessage:
+        if self.llm is None:
+            raise NotImplementedError
+        return await self.llm.get_response(messages, self.tools)
 
     def to_tuple(self) -> tuple:
         return (
             self.__class__.__name__,
-            self.llm.model_name if self.llm is not None else ''
+            self.llm.model_name if self.llm is not None else '',
+            [tool.name for tool in self.tools] if self.tools is not None else ''
         )
 
     def to_dict(self) -> dict:
@@ -70,6 +77,7 @@ class Node():
             'class_module': self.__class__.__module__,
             'class_name': self.__class__.__name__,
             'model_name': self.llm.model_name if self.llm is not None else None,
+            'tools': [tool.name for tool in self.tools] if self.tools is not None else None,
             'name': self.name
         }
 
@@ -79,8 +87,7 @@ class Node():
         class_name = data['class_name']
         module = __import__(module_name, fromlist=[class_name])
         node_class = getattr(module, class_name)
-        llm = get_model(data['model_name']) if data['model_name'] is not None else None
-        node: Node = node_class(llm = llm)
+        node: Node = node_class(llm = data['model_name'], tools = data['tools'])
         node.name = data['name']
         return node
         

@@ -1,12 +1,16 @@
 import sys
 sys.path.insert(0, '..')
 
+from modules.models import Base_LLM
 from modules.nodes.base import *
 from modules.nodes.prompt_templates import *
 
 class Identity(Node):
     input_state = Any
     output_state = input_state
+
+    def __init__(self) -> None:
+        super().__init__(None)
 
     async def __call__(self, messages: Messages) -> Messages:
         return messages

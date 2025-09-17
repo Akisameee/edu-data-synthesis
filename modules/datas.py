@@ -124,7 +124,8 @@ class EvaluationDataset(Dataset):
     
     def sub_criterion(self, criterion_name: str) -> 'EvaluationDataset':
         sub_dataset = self.__class__(language = self.language)
-        sub_dataset.name = f'{criterion_name}_{self.name}'
+        name_prefix = criterion_name.lower().replace(' ', '_')
+        sub_dataset.name = f'{name_prefix}_{self.name}'
         sub_dataset.labels = {eval: [] for eval in self.labels.keys()}
         for messages, scores_dict in self:
             criterion = messages.metadata.criteria[criterion_name]

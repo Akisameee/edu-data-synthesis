@@ -4,5 +4,6 @@ from modules.nodes.aggregate.aggregate import (
     EvaluationMin,
     EvaluationAggregation,
     EvaluationVoting,
-    Debate
+    Debate,
+    aggregate_system_template
 )

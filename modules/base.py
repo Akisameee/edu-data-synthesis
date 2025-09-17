@@ -5,9 +5,6 @@ import functools
 from typing import Literal, List, Dict, Set, Generic, TypeVar, Optional, Any, get_args
 from dataclasses import dataclass, fields, is_dataclass
 
-import sys
-sys.path.insert(0, '..')
-
 T = TypeVar('T')
 
 class GenericList(Generic[T]):

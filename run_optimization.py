@@ -12,12 +12,12 @@ from utils import *
 if __name__ == '__main__':
 
     val_dataset = EvaluationDataset('./eval_res/sub_eval_samples.jsonl')
-    for c in val_dataset.criteria:
-        sub_dataset = val_dataset.sub_criterion(c.name)
+    val_dataset = val_dataset.sub_criterion(val_dataset.criteria[0].name)
 
     eval_workflow = EvaluationWorkflow()
     eval_workflow.add_node('evaluate_0', Evaluate('deepseek-v3'))
     eval_workflow.add_node('evaluate_1', Evaluate('deepseek-r1'))
+    eval_workflow.add_node('evaluate_2', Evaluate('deepseek-v3', ['web_search']))
     eval_workflow.add_node('aggregate_0', EvaluationAggregation('deepseek-v3'))
     eval_workflow.add_node('voting_0', EvaluationVoting('deepseek-v3'))
     eval_workflow.add_node('average', EvaluationAverage())

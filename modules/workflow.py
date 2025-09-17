@@ -303,13 +303,13 @@ class EvaluationWorkflow(Workflow):
         max_parallel: int = 8
     ) -> Tuple[float, float]:
         semaphore = asyncio.Semaphore(max_parallel)
-        async def run_with_semaphore(index, inputs):
+        async def run_with_semaphore(index, inputs: Messages):
             async with semaphore:
                 try:
                     messages = await self.run(inputs)
                     return index, messages
                 except Exception as e:
-                    tqdm.write(f'Evaluation error: {e}')
+                    tqdm.write(f'Data \'{inputs.metadata.id}\' Evaluation Error:\n{e}')
                     return index, None
         
         tasks = []

@@ -8,6 +8,9 @@ from modules.nodes.base import *
 from modules.nodes.utils import *
 from modules.nodes.prompt_templates import *
 
+aggregate_system_template = Template('./modules/nodes/aggregate/aggregate_system.md')
+aggregate_user_template = Template('./modules/nodes/aggregate/aggregate_user.md')
+
 class EvaluationAverage(Node):
     input_state = 'scored'
     output_state = 'scored'
@@ -95,28 +98,37 @@ class EvaluationAggregation(Node):
     async def __call__(self, messages_list: List[Messages]) -> Messages:
         if len(messages_list) == 1:
             return messages_list[0]
-
         messages = messages_list[0].deepcopy()
-        prompt = evaluation_aggregate_template.format(
-            scenario = messages.metadata.scenario.__dict__,
-            message = messages.to_json(),
-            criteria = messages.metadata.criteria.to_json()
-        ) + '\n' + ''.join([
-            f'Scores {idx}:\n{msgs.scores.to_json()}\n'
-            for idx, msgs in enumerate(messages_list)
-        ])
-        
-        completion = await self.llm.get_response(
-            messages = [{'role': 'user', 'content': prompt}, ]
+        system_prompt = aggregate_system_template.format(messages)
+        user_prompt = aggregate_user_template.format(
+            messages, evaluations = '\n'.join([
+                f'  - [{idx}]\n{msgs.to_md(1)}'
+                for idx, msgs in enumerate(messages_list)
+            ])
         )
-        response = completion.choices[0].message.content.strip()
-
-        scores = extract_json(response)
+        # prompt = evaluation_aggregate_template.format(
+        #     scenario = messages.metadata.scenario.__dict__,
+        #     message = messages.to_json(),
+        #     criteria = messages.metadata.criteria.to_json()
+        # ) + '\n' + ''.join([
+        #     f'Scores {idx}:\n{msgs.scores.to_json()}\n'
+        #     for idx, msgs in enumerate(messages_list)
+        # ])
+        with open('test_prompt.md', 'w') as f:
+            f.write(user_prompt)
+        
+        response = await self.get_response(
+           messages = [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': user_prompt},
+            ]
+        )
+        messages.cost[self.name] = self.llm.cost(response)
+        scores = extract_json(response.content.strip())
         scores = check_scores(scores, messages.metadata.criteria.to_json())
 
         scores.source = self.llm.model_name
         messages.scores = scores
-        messages.cost[self.name] = self.llm.cost(completion)
         return messages
     
 class EvaluationVoting(Node):
@@ -142,16 +154,15 @@ class EvaluationVoting(Node):
             criteria = messages.metadata.criteria.to_json()
         ) + '\n' + ''.join([f'{choice}. {scores.to_json()}\n' for choice, scores in scores_dict.items()])
         
-        completion = await self.llm.get_response(
+        response = await self.llm.get_response(
             messages = [{'role': 'user', 'content': prompt}, ]
         )
-        response = completion.choices[0].message.content.strip()
-
-        choice = extract_boxed(response)
+        messages.cost[self.name] = self.llm.cost(response)
+        choice = extract_boxed(response.content.strip())
         scores = scores_dict[choice]
+
         scores.source = self.llm.model_name
         messages.scores = scores
-        messages.cost[self.name] = self.llm.cost(completion)
         return messages
     
 class Debate(Node):
@@ -188,13 +199,11 @@ class Debate(Node):
                 other_responses = other_responses
             )
             llm = get_model(messages_list[idx].scores.source)
-            completion = await llm.get_response(
+            response = await llm.get_response(
                 messages = [{'role': 'user', 'content': prompt}, ]
             )
-            cost += llm.cost(completion)
-            response = completion.choices[0].message.content.strip()
-
-            scores = extract_json(response)
+            cost += llm.cost(response)
+            scores = extract_json(response.content.strip())
             messages_list[idx].scores = (scores, messages.metadata.criteria.to_json())
             # print(response_list[idx].to_json())
         

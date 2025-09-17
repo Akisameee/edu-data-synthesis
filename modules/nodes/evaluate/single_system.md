@@ -28,7 +28,7 @@ The output must be a JSON object as specified below. The JSON object should be p
 
 Example of the JSON object:
 ```json
-{{"criterion": "<criterion name>", "score": <score>, "reason": "<reason>"}}
+{{"criterion": "<criterion_name>", "score": <score>, "reason": "<reason>"}}
 ```
 
 # Notes

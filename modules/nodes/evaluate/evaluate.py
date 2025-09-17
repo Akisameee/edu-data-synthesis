@@ -6,10 +6,8 @@ from modules.nodes.utils import *
 from modules.datas import EvaluationDataset
 from modules.nodes.prompt_templates import *
 
-evaluate_sys_template = Template('./modules/nodes/evaluate/evaluate_system.md')
+evaluate_system_template = Template('./modules/nodes/evaluate/evaluate_system.md')
 evaluate_user_template = Template('./modules/nodes/evaluate/evaluate_user.md')
-evaluate_single_sys_template = Template('./modules/nodes/evaluate/single_system.md')
-evaluate_single_user_template = Template('./modules/nodes/evaluate/single_user.md')
 
 class Evaluate(Node):
     input_state = 'assistant'
@@ -21,30 +19,18 @@ class Evaluate(Node):
         self,
         messages: Messages,
     ) -> Messages:
-        if len(messages.metadata.criteria) > 1:
-            sys_prompt = evaluate_sys_template.format(messages)
-            user_prompt = evaluate_user_template.format(messages)
-        elif len(messages.metadata.criteria) == 1:
-            sys_prompt = evaluate_single_sys_template.format(messages)
-            user_prompt = evaluate_single_user_template.format(
-                messages, criterion = messages.metadata.criteria[0].to_md(1)
-            )
-        else:
-            raise ValueError('Invalid criteria.')
-        # with open('test_prompt.md', 'w', encoding='utf-8') as f:
-        #     f.write(user_prompt)
+        system_prompt = evaluate_system_template.format(messages)
+        user_prompt = evaluate_user_template.format(messages)
 
-        completion = await self.llm.get_response(
+        response = await self.get_response(
             messages = [
-                {'role': 'system', 'content': sys_prompt},
+                {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': user_prompt},
             ],
             temperature = 0.0
         )
-        messages.cost[self.name] = self.llm.cost(completion)
-        response = completion.choices[0].message.content.strip()
-
-        scores = extract_json(response)
+        messages.cost[self.name] = self.llm.cost(response)
+        scores = extract_json(response.content.strip())
         scores = check_scores(scores, messages.metadata.criteria)
 
         scores.source = self.llm.model_name
@@ -113,93 +99,13 @@ class EvaluateICL(Node):
             )
         )
 
-        completion = await self.llm.get_response(
+        response = await self.get_response(
             messages = [{'role': 'user', 'content': prompt}, ],
             temperature = 0.0
         )
-        messages.cost[self.name] = self.llm.cost(completion)
-        response = completion.choices[0].message.content.strip()
-
-        scores = extract_json(response)
+        messages.cost[self.name] = self.llm.cost(response)
+        scores = extract_json(response.content.strip())
         scores = check_scores(scores, messages.scores['criteria'])
-
-        scores.source = self.llm.model_name
-        messages.scores = scores
-        return messages
-
-class EvaluateSingle(Node):
-    input_state = 'assistant'
-    output_state = 'scored'
-    max_indegree = 1
-
-    @retry(max_attempt = 3)
-    async def __call__(
-        self,
-        messages: Messages
-    ) -> Messages:
-
-        if isinstance(self.llm, LLM_API):
-            return await self._call_llm_api(messages)
-        elif isinstance(self.llm, RM_HF):
-            return self._call_rm_hf(messages)
-    
-    async def _call_llm_api(
-        self,
-        messages: Messages
-    ) -> Messages:
-        scores = []
-        for criterion in messages.metadata.criteria:
-            prompt = evaluation_single_template.format(
-                scenario = messages.metadata.scenario.__dict__,
-                message = messages.to_json(),
-                criterion = criterion.__dict__
-            )
-
-            completion = await self.llm.get_response(
-                messages = [{'role': 'user', 'content': prompt}, ],
-                temperature = 0.0
-            )
-            messages.cost[self.name] = self.llm.cost(completion)
-            response = completion.choices[0].message.content.strip()
-            scores.append(extract_json(response))
-
-        scores = check_scores(scores, messages.metadata.criteria)
-
-        scores.source = self.llm.model_name
-        messages.scores = scores
-        return messages
-    
-    def _call_rm_hf(
-        self,
-        messages: Messages
-    ) -> Messages:
-        scores = []
-        for criterion in messages.metadata.criteria:
-            prompt = evaluation_single_template.format(
-                scenario = messages.metadata.scenario.__dict__,
-                message = messages.to_json(),
-                criterion = criterion.__dict__
-            )
-
-            rewards = []
-            for score in range(10):
-                response_template = '```json{{"criterion": "{criterion_name}", "score": {score}, "reason": "{reason}"}}```'
-                response = response_template.format(
-                    criterion_name = criterion['metric'],
-                    score = str(score + 1),
-                    reason = criterion['levels'][-(int(score / 2) + 1)]
-                )
-                reward = self.llm.get_reward(
-                    messages = [{'role': 'user', 'content': prompt}, {'role': 'assistant', 'content': response}]
-                )
-                rewards.append({
-                    'reward': reward,
-                    'response': extract_json(response)
-                })
-            rewards.sort(key = lambda r: r['reward'], reverse = True)
-            scores.append(rewards[0]['response'])
-
-        scores = check_scores(scores, messages.metadata.criteria)
 
         scores.source = self.llm.model_name
         messages.scores = scores

@@ -24,11 +24,10 @@ class Optimizer:
         self.workflows_evaluated: List[Dict[str, Workflow | float]] = []
         self.dataset = dataset
         self.cost_weight = cost_weight
-
-        workflow_cls = init_workflow.__class__.__name__.lower()
+        
         optimizer_cls = self.__class__.__name__.lower()
-        self.scores_path = os.path.join(RES_DIR, f'{workflow_cls}_scores.json')
-        self.logger = TqdmLogger(f'{workflow_cls}_{optimizer_cls}_opt', RES_DIR)
+        self.scores_path = os.path.join(RES_DIR, f'{self.dataset.name}_scores.json')
+        self.logger = TqdmLogger(f'{self.dataset.name}_{optimizer_cls}_opt', RES_DIR)
 
         self.workflows_evaluated = self.load_scores()
         self.opt_cost = 0

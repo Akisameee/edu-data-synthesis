@@ -125,7 +125,7 @@ evaluation_aggregate_template = \
 对话：
 {message}
 评估指标：
-{criteria}
+{criterias}
 '''
 
 evaluation_voting_template = \
