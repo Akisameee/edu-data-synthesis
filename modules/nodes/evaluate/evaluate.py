@@ -22,14 +22,14 @@ class Evaluate(Node):
         system_prompt = evaluate_system_template.format(messages)
         user_prompt = evaluate_user_template.format(messages)
 
-        response = await self.get_response(
+        response, cost = await self.get_response(
             messages = [
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': user_prompt},
             ],
             temperature = 0.0
         )
-        messages.cost[self.name] = self.llm.cost(response)
+        messages.cost[self.name] = cost
         scores = extract_json(response.content.strip())
         scores = check_scores(scores, messages.metadata.criteria)
 
@@ -91,7 +91,7 @@ class EvaluateICL(Node):
 
         prompt = evaluation_cl_template.format(
             scenario = messages.scores['scenario'],
-            message = messages.to_json(),
+            message = messages.to_list(),
             criteria = messages.scores['criteria'],
             samples = self.get_human_eval_sample(
                 messages.scores['task'],
@@ -99,11 +99,11 @@ class EvaluateICL(Node):
             )
         )
 
-        response = await self.get_response(
+        response, cost = await self.get_response(
             messages = [{'role': 'user', 'content': prompt}, ],
             temperature = 0.0
         )
-        messages.cost[self.name] = self.llm.cost(response)
+        messages.cost[self.name] = cost
         scores = extract_json(response.content.strip())
         scores = check_scores(scores, messages.scores['criteria'])
 

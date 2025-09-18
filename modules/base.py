@@ -2,7 +2,7 @@ from tqdm import tqdm
 from copy import deepcopy
 import json
 import functools
-from typing import Literal, List, Dict, Set, Generic, TypeVar, Optional, Any, get_args
+from typing import Literal, List, Dict, Set, Generic, TypeVar, Optional, Any, Tuple
 from dataclasses import dataclass, fields, is_dataclass
 
 T = TypeVar('T')
@@ -17,16 +17,26 @@ class GenericList(Generic[T]):
     def __len__(self) -> int: return len(self._items)
     def __getitem__(self, idx: int) -> T: return self._items[idx]
     def __iter__(self): yield from self._items
+    def __eq__(self, other: 'GenericList[T]') -> bool: return all(a == b for a, b in zip(self._items, other._items))
+    def __add__(self, other: 'GenericList[T]') -> 'GenericList[T]': return GenericList(self._items + other._items)
     def append(self, item: T) -> None: self._items.append(item)
     def pop(self, idx: int = -1) -> T: return self._items.pop(idx)
-    def to_json(self) -> list: return [_item.__dict__ for _item in self._items]
+    def to_list(self) -> list:
+        return [_item.__dict__ for _item in self._items]
+    def to_dict(self) -> dict:
+        data = {key: value for key, value in self.__dict__.items() if not key.startswith('_')}
+        data['_items'] = self.to_list()
+        return data
+    @classmethod
+    def from_dict(cls, data: dict) -> 'GenericList[T]':
+        list_obj = cls(data.get('_items'))
+        for key, value in data: setattr(list_obj, key, value)
+        return list_obj
     def to_md(self, indent: int = 0) -> str:
         return '\n'.join([
             '  ' * indent + f'- [{idx}]\n{item.to_md(indent + 1)}'
             for idx, item in enumerate(self._items)
         ])
-    def __eq__(self, other: 'GenericList[T]'): return all(a == b for a, b in zip(self._items, other._items))
-    def __add__(self, other: 'GenericList[T]'): return GenericList(self._items + other._items)
 
 class DataClassMixin:
     def to_md(self, indent: int = 0) -> str:

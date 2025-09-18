@@ -1,6 +1,10 @@
+import random
+import asyncio
 from tqdm import tqdm
 from copy import deepcopy
+from typing import Callable
 from string import Formatter
+import aiofiles
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
 
@@ -10,6 +14,8 @@ sys.path.insert(0, '..')
 from modules.models import *
 from modules.tools import *
 from modules.base import *
+
+CACHE_DIR = './modules/nodes/.cache'
 
 class Template:
     template: str
@@ -29,7 +35,7 @@ class Template:
             if key in kwargs:
                 continue
             elif key == 'messages':
-                kwargs[key] = messages.to_json()
+                kwargs[key] = messages.to_list()
             elif key == 'scenario':
                 kwargs[key] = messages.metadata.scenario.to_md(1)
             elif key == 'criteria':
@@ -48,6 +54,9 @@ class Node():
     llm: Optional[Base_LLM]
     tools: Optional[List[BaseTool]]
 
+    cache: bool = False
+    max_cache_count: int = 5
+
     def __init__(
         self,
         llm: Optional[str | Base_LLM],
@@ -60,10 +69,73 @@ class Node():
             tools = get_tools(tools)
         self.tools = tools
 
-    async def get_response(self, messages: List[Dict[str, str]], **kwargs) -> BaseMessage:
+        if self.cache:
+            self.cache_path = os.path.join(CACHE_DIR, '_'.join(self.to_tuple()))
+            os.makedirs(os.path.dirname(self.cache_path), exist_ok = True)
+            self._cache_lock = asyncio.Lock()
+            self.__call__ = self._cache_decorator(self.max_cache_count)(self.__call__)
+
+    async def _cache_load(self, messages: Messages, max_cache_count: int) -> Optional[Messages]:
+        if messages.metadata.id is None:
+            return None
+        async with self._cache_lock:
+            if not os.path.exists(self.cache_path):
+                return None
+            async with aiofiles.open(self.cache_path, 'r', encoding = 'utf-8') as af:
+                cached_dict: Dict[str, List[Dict]] = json.loads(await af.read())
+            if messages.metadata.id not in cached_dict:
+                return None
+            cached_outputs = cached_dict[messages.metadata.id]
+            if len(cached_outputs) < max_cache_count:
+                return None
+            else:
+                cached_output = random.choice(cached_outputs)
+                for key, value in cached_output.items():
+                    if key == 'scores':
+                        messages.scores = EvalScores.from_dict(value)
+                    elif key == 'cost':
+                        messages.cost[self.name] = value
+                    else: raise NotImplementedError
+                return messages
+    
+    async def _cache_save(self, messages: Messages) -> None:
+        if messages.metadata.id is None:
+            return
+        async with self._cache_lock:
+            if not os.path.exists(self.cache_path):
+                async with aiofiles.open(self.cache_path, 'r', encoding = 'utf-8') as af:
+                    cached_dict: Dict[str, List[Dict]] = json.loads(await af.read())
+            else: cached_dict = {}
+            if messages.metadata.id not in cached_dict:
+                cached_dict[messages.metadata.id] = []
+            cached_output = {}
+            if self.llm is not None: cached_output['cost'] = messages.cost[self.name]
+            if self.output_state == 'scored':
+                cached_output['scores'] = messages.scores.to_dict()
+            else: raise NotImplementedError
+            cached_dict[messages.metadata.id].append(cached_output)
+
+            async with aiofiles.open(self.cache_path, 'w', encoding = 'utf-8') as af:
+                await af.write(json.dumps(cached_dict, ensure_ascii = False, indent = 4))
+    
+    def _cache_decorator(self, max_cache_count: int = 5) -> Callable:
+        def decorator(call_func):
+            if call_func.__name__ != '__call__':
+                raise ValueError('The cache decorator can only be used on __call__ method.')
+            async def wrapper(self: 'Node', messages: Messages, *args, **kwargs):
+                cached_messages = await self._cache_load(messages, max_cache_count)
+                if cached_messages is not None:
+                    return cached_messages
+                result = await call_func(self, messages, *args, **kwargs)
+                await self._cache_save(result)
+                return result
+            return wrapper
+        return decorator
+
+    async def get_response(self, messages: List[Dict[str, str]], **kwargs) -> Tuple[BaseMessage, float]:
         if self.llm is None:
             raise NotImplementedError
-        return await self.llm.get_response(messages, self.tools)
+        return await self.llm.get_response(messages, self.tools, **kwargs)
 
     def to_tuple(self) -> tuple:
         return (
@@ -90,10 +162,10 @@ class Node():
         node: Node = node_class(llm = data['model_name'], tools = data['tools'])
         node.name = data['name']
         return node
-        
-    async def __call__(self, messages: Messages) -> Any:
-        return messages
     
+    async def __call__(self, inputs: Messages | List[Messages]) -> Any:
+        return inputs
+        
 # class Review(Node):
 #     input_type = AssistantMessages
 #     output_type = EvalScores

@@ -47,13 +47,13 @@ class UserGenerate(Node):
         prompt = user_generate_template.format(
             scenario = messages.metadata['scenario'],
             meta_data = messages.metadata['meta_data'],
-            message = messages.to_json()
+            message = messages.to_list()
         )
 
         completion = await self.llm.get_response(
             messages = [{'role': 'user', 'content': prompt}, ]
         )
-        self.llm.cost(completion)
+        self.llm.get_cost(completion)
         response = completion.choices[0].message.content.strip()
         
         json_obj = extract_json(response)
@@ -79,8 +79,8 @@ class AssistantGenerate(Node):
     @retry(max_attempt = 3)
     async def __call__(self, messages: Messages) -> Messages:
         
-        completion = await self.llm.get_response(messages = messages.to_json())
-        self.llm.cost(completion)
+        completion = await self.llm.get_response(messages = messages.to_list())
+        self.llm.get_cost(completion)
         response = completion.choices[0].message.content.strip()
 
         messages.append(Message(role = 'assistant', content = response))
@@ -104,7 +104,7 @@ class ResponseAggregate(Node):
             if any(msg != messages_list[i][0] for msg in messages_list[i]):
                 break
 
-        history = messages_list[0].to_json()[:i]
+        history = messages_list[0].to_list()[:i]
         responses = [messages[-1] for messages in messages_list]
 
         prompt = response_aggregate_template.format(
@@ -115,7 +115,7 @@ class ResponseAggregate(Node):
         completion = await self.llm.get_response(
             messages = [{'role': 'user', 'content': prompt}, ]
         )
-        self.llm.cost(completion)
+        self.llm.get_cost(completion)
         response = completion.choices[0].message.content.strip()
 
         json_obj = extract_json(response)

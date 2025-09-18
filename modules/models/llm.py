@@ -6,7 +6,7 @@ from openai.types.chat.chat_completion import Choice
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.tools import BaseTool
-from typing import List, Dict, Optional, Type
+from typing import List, Dict, Optional, Tuple
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 # try:
 #     from vllm import LLM
@@ -26,13 +26,13 @@ class Base_LLM():
         messages: List[Dict[str, str]],
         tools: Optional[List[BaseTool]] = None,
         **kwargs
-    ) -> BaseMessage:
+    ) -> Tuple[BaseMessage, float]:
         raise NotImplementedError
 
     def get_reward(self, **kwargs) -> int:
         raise NotImplementedError
     
-    def cost(self, completion: BaseMessage, **kwargs) -> float:
+    def get_cost(self, completion: BaseMessage, **kwargs) -> float:
         raise NotImplementedError
 
 # class LLM_API(Base_LLM):
@@ -97,7 +97,7 @@ class LLM_API(Base_LLM):
         messages: List[Dict[str, str]],
         tools: Optional[List[BaseTool]] = None,
         **kwargs
-    ) -> BaseMessage:
+    ) -> Tuple[BaseMessage, float]:
         langchain_messages = []
         for msg in messages:
             if msg["role"] == "system":
@@ -109,14 +109,16 @@ class LLM_API(Base_LLM):
         client_with_tools = self.client
         if tools:
             client_with_tools = self.client.bind_tools(tools)
+        cost = 0
         while True:
             response = await client_with_tools.ainvoke(langchain_messages, **kwargs)
             langchain_messages.append(response)
+            cost += self.get_cost(response)
             tool_messages = await self._execute_tools(response, tools)
             if tool_messages:
                 langchain_messages += tool_messages
             else: break
-        return response
+        return response, cost
     
     async def _execute_tools(self, response: BaseMessage, tools: List[BaseTool]) -> List[ToolMessage]:
         tool_messages = []
@@ -129,7 +131,7 @@ class LLM_API(Base_LLM):
                     try:
                         tool_result = await tool.ainvoke(tool_args)
                         content = str(tool_result)
-                        tqdm.write(f'tool: {tool_name}, tool_args: {tool_args}, response: {content[:50]}')
+                        # tqdm.write(f'tool: {tool_name}, tool_args: {tool_args}, response: {content[:50]}')
                     except Exception as e:
                         content = f'Error occured when executing {tool_name}: {str(e)}'
                 else: content = f'Unknown tool: {tool_name}'
@@ -140,10 +142,15 @@ class LLM_API(Base_LLM):
                 ))
         return tool_messages
     
-    def cost(self, response: BaseMessage) -> float:
-        prompt_tokens = response.response_metadata['token_usage']['prompt_tokens']
-        completion_tokens = response.response_metadata['token_usage']['completion_tokens']
-        return prompt_tokens * self.price['prompt'] + completion_tokens * self.price['completion']
+    def get_cost(self, response: BaseMessage) -> float:
+        token_usage = response.response_metadata['token_usage']
+        if 'prompt_cache_hit_tokens' in self.price and 'prompt_cache_miss_tokens' in self.price:
+            prompt_cost = token_usage['prompt_cache_hit_tokens'] * self.price['prompt_cache_hit_tokens']
+            prompt_cost += token_usage['prompt_cache_miss_tokens'] * self.price['prompt_cache_miss_tokens']
+        else:
+            prompt_cost = token_usage['prompt_tokens'] * self.price['prompt']
+        completion_cost = token_usage['completion_tokens'] * self.price['completion']
+        return prompt_cost + completion_cost
     
 # class LLM_VLLM(Base_LLM):
 
@@ -238,6 +245,6 @@ class RM_HF(Base_LLM):
 
         return score
     
-    def cost(self, completion: BaseMessage) -> float:
+    def get_cost(self, completion: BaseMessage) -> float:
 
         return 0

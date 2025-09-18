@@ -2,26 +2,24 @@ import re
 import json
 import inspect
 import functools
+from typing import Callable
 from tqdm import tqdm
 
 from modules.base import *
 
 def extract_json(response: str):
     match = re.search(r'```json\s*(.*)\s*```', response, re.DOTALL)
-    if match:
-        json_str = match.group(1)
+    if match: json_str = match.group(1)
+    else: json_str = response
+    try:
+        json_obj = json.loads(json_str)
+        return json_obj 
+    except Exception as e:
         try:
-            json_obj = json.loads(json_str)
-            return json_obj 
-        except Exception as e:
-            try:
-                json_obj = fix_json_close(json_str)
-                return json_obj
-            except:
-                raise ValueError(f'[JSON Parse Error] {str(e)}.')
-    else:
-        return extract_json(f'```json{response}```')
-        # raise ValueError(f'[JSON Parse Error] Code block not found. Invalid response: {response}')
+            json_obj = fix_json_close(json_str)
+            return json_obj
+        except:
+            raise ValueError(f'[JSON Parse Error] {str(e)}.')
 
 def fix_json_close(json_str: str):
     close_prefix, close_suffix = [], []
@@ -82,10 +80,7 @@ def check_scores(
     
     return EvalScores(scores)
 
-def retry(
-    max_attempt: int = 3,
-    verbose: bool = False
-):
+def retry(max_attempt: int = 3, verbose: bool = False) -> Callable:
     def decorator(func):
         if inspect.iscoroutinefunction(func):
             @functools.wraps(func)

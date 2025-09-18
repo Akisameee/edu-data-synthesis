@@ -34,46 +34,42 @@ model_map = {
             'completion': 0.0096 / 1000
         }
     },
-    # 'deepseek-v3': {
-    #     'class': LLM_API,
-    #     'kwargs': {
-    #         'model_name_client': 'Pro/deepseek-ai/DeepSeek-V3',
-    #         **api_keys['siliconflow'],
-    #         'price': {
-    #             'prompt': 2e-6,
-    #             'completion': 8e-6
-    #         }
-    #     },
-    # },
-    # 'deepseek-r1': {
-    #     'class': LLM_API,
-    #     'kwargs': {
-    #         'model_name_client': 'Pro/deepseek-ai/DeepSeek-R1',
-    #         **api_keys['siliconflow'],
-    #         'price': {
-    #             'prompt': 4e-6,
-    #             'completion': 1.6e-5
-    #         }
-    #     }
-    # },
     'deepseek-v3': {
         'class': LLM_API,
-        'model_name_client': 'deepseek-v3',
-        **api_keys['chatanywhere'],
+        'model_name_client': 'deepseek-chat',
+        **api_keys['deepseek'],
         'price': {
-            'prompt': 0.0012 / 1000,
-            'completion': 0.0048 / 1000
-        }
+            'prompt': 4e-6,
+            'completion': 1.2e-5
+        },
     },
     'deepseek-r1': {
         'class': LLM_API,
-        'model_name_client': 'deepseek-r1',
-        **api_keys['chatanywhere'],
+        'model_name_client': 'deepseek-reasoner',
+        **api_keys['deepseek'],
         'price': {
-            'prompt': 0.0024 / 1000,
-            'completion': 0.0096 / 1000
+            'prompt': 4e-6,
+            'completion': 1.2e-5
         }
     },
+    # 'deepseek-v3': {
+    #     'class': LLM_API,
+    #     'model_name_client': 'deepseek-v3',
+    #     **api_keys['chatanywhere'],
+    #     'price': {
+    #         'prompt': 0.0012 / 1000,
+    #         'completion': 0.0048 / 1000
+    #     }
+    # },
+    # 'deepseek-r1': {
+    #     'class': LLM_API,
+    #     'model_name_client': 'deepseek-r1',
+    #     **api_keys['chatanywhere'],
+    #     'price': {
+    #         'prompt': 0.0024 / 1000,
+    #         'completion': 0.0096 / 1000
+    #     }
+    # },
     'gpt-4o': {
         'class': LLM_API,
         'model_name_client': 'gpt-4o',

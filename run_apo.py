@@ -62,7 +62,7 @@ def perpare_datas():
             messages = Messages([Message(**message) for message in eval_data['message']])
             question = evaluation_template.format(
                 scenario = scenario,
-                message = messages.to_json(),
+                message = messages.to_list(),
                 criteria = criterias[scenario['task']]
             )
             datas[eval_data['id']] = dspy.Example({

@@ -9,7 +9,7 @@ sys.path.insert(0, '..')
 class WebSearchConfig:
     engine: Literal['tavily'] = 'tavily'
     api_key: str = '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'
-    max_search_results: int = 5
+    max_search_results: int = 3
     include_domains: Optional[List[str]] = field(default_factory=list)
     exclude_domains: Optional[List[str]] = field(default_factory=list)
 

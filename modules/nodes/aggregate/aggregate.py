@@ -117,15 +117,15 @@ class EvaluationAggregation(Node):
         with open('test_prompt.md', 'w') as f:
             f.write(user_prompt)
         
-        response = await self.get_response(
+        response, cost = await self.get_response(
            messages = [
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': user_prompt},
             ]
         )
-        messages.cost[self.name] = self.llm.cost(response)
+        messages.cost[self.name] = cost
         scores = extract_json(response.content.strip())
-        scores = check_scores(scores, messages.metadata.criteria.to_json())
+        scores = check_scores(scores, messages.metadata.criteria)
 
         scores.source = self.llm.model_name
         messages.scores = scores
@@ -150,14 +150,14 @@ class EvaluationVoting(Node):
 
         prompt = evaluation_voting_template.format(
             scenario = messages.metadata.scenario.__dict__,
-            message = messages.to_json(),
-            criteria = messages.metadata.criteria.to_json()
-        ) + '\n' + ''.join([f'{choice}. {scores.to_json()}\n' for choice, scores in scores_dict.items()])
+            message = messages.to_list(),
+            criteria = messages.metadata.criteria.to_list()
+        ) + '\n' + ''.join([f'{choice}. {scores.to_list()}\n' for choice, scores in scores_dict.items()])
         
-        response = await self.llm.get_response(
+        response, cost = await self.get_response(
             messages = [{'role': 'user', 'content': prompt}, ]
         )
-        messages.cost[self.name] = self.llm.cost(response)
+        messages.cost[self.name] = cost
         choice = extract_boxed(response.content.strip())
         scores = scores_dict[choice]
 
@@ -181,16 +181,16 @@ class Debate(Node):
         messages = messages_list[0].deepcopy()
         contexts = evaluation_template.format(
             scenario = messages.metadata.scenario.__dict__,
-            message = messages.to_json(),
-            criteria = messages.metadata.criteria.to_json()
+            message = messages.to_list(),
+            criteria = messages.metadata.criteria.to_list()
         )
 
         cost = 0
         for idx in range(len(messages_list)):
-            self_response = messages_list[idx].scores.to_json()
+            self_response = messages_list[idx].scores.to_list()
             other_responses = messages_list[:idx] + messages_list[idx + 1:]
             other_responses = '\n'.join(
-                [json.dumps(msgs.scores.to_json(), ensure_ascii = False) for msgs in other_responses]
+                [json.dumps(msgs.scores.to_list(), ensure_ascii = False) for msgs in other_responses]
             )
 
             prompt = debate_template.format(
@@ -202,9 +202,9 @@ class Debate(Node):
             response = await llm.get_response(
                 messages = [{'role': 'user', 'content': prompt}, ]
             )
-            cost += llm.cost(response)
+            cost += llm.get_cost(response)
             scores = extract_json(response.content.strip())
-            messages_list[idx].scores = (scores, messages.metadata.criteria.to_json())
+            messages_list[idx].scores = (scores, messages.metadata.criteria.to_list())
             # print(response_list[idx].to_json())
         
         for msgs in messages_list:
