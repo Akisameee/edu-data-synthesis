@@ -17,19 +17,29 @@ from modules.base import *
 
 CACHE_DIR = './modules/nodes/.cache'
 
+from jinja2 import Environment, FileSystemLoader, Template as JinjaTemplate, meta
+from string import Formatter
+
 class Template:
-    template: str
+    template: JinjaTemplate
     keys: Set[str]
-
+    env: Environment
+    
     def __init__(self, template_path: str) -> None:
-        with open(template_path, 'r', encoding = 'utf-8') as f:
-            self.template = f.read()
-        formatter = Formatter()
-        self.keys = set()
-        for _, key, _, _ in formatter.parse(self.template):
-            if key is not None:
-                self.keys.add(key)
-
+        template_dir = os.path.dirname(template_path)
+        template_file = os.path.basename(template_path)
+        self.env = Environment(
+            loader=FileSystemLoader(template_dir),
+            autoescape=False,
+            trim_blocks=True,
+            lstrip_blocks=True
+        )
+        with open(template_path, 'r', encoding='utf-8') as f:
+            template_content = f.read()
+        parsed_content = self.env.parse(template_content)
+        self.keys = meta.find_undeclared_variables(parsed_content)
+        self.template = self.env.get_template(template_file)
+    
     def format(self, messages: Messages, **kwargs) -> str:
         for key in self.keys:
             if key in kwargs:
@@ -42,7 +52,36 @@ class Template:
                 kwargs[key] = messages.metadata.criteria.to_md(1)
             else:
                 raise KeyError(f'Failed to format template with key={key}.')
-        return self.template.format(**kwargs)
+        missing_vars = self.keys - set(kwargs.keys())
+        if missing_vars: raise KeyError(f'Missing variables: {missing_vars}')
+        return self.template.render(**kwargs)
+
+# class Template:
+#     template: str
+#     keys: Set[str]
+
+#     def __init__(self, template_path: str) -> None:
+#         with open(template_path, 'r', encoding = 'utf-8') as f:
+#             self.template = f.read()
+#         formatter = Formatter()
+#         self.keys = set()
+#         for _, key, _, _ in formatter.parse(self.template):
+#             if key is not None:
+#                 self.keys.add(key)
+
+#     def format(self, messages: Messages, **kwargs) -> str:
+#         for key in self.keys:
+#             if key in kwargs:
+#                 continue
+#             elif key == 'messages':
+#                 kwargs[key] = messages.to_list()
+#             elif key == 'scenario':
+#                 kwargs[key] = messages.metadata.scenario.to_md(1)
+#             elif key == 'criteria':
+#                 kwargs[key] = messages.metadata.criteria.to_md(1)
+#             else:
+#                 raise KeyError(f'Failed to format template with key={key}.')
+#         return self.template.format(**kwargs)
     
 class Node():
     name: Optional[str] = None
@@ -60,7 +99,7 @@ class Node():
     def __init__(
         self,
         llm: Optional[str | Base_LLM],
-        tools: Optional[List[str]] = None
+        tools: Optional[List[str]] = []
     ) -> None:
         if llm is not None and isinstance(llm, str):
             llm = get_model(llm)
@@ -141,7 +180,7 @@ class Node():
         return (
             self.__class__.__name__,
             self.llm.model_name if self.llm is not None else '',
-            [tool.name for tool in self.tools] if self.tools is not None else ''
+            [tool.name for tool in self.tools]
         )
 
     def to_dict(self) -> dict:
@@ -149,7 +188,7 @@ class Node():
             'class_module': self.__class__.__module__,
             'class_name': self.__class__.__name__,
             'model_name': self.llm.model_name if self.llm is not None else None,
-            'tools': [tool.name for tool in self.tools] if self.tools is not None else None,
+            'tools': [tool.name for tool in self.tools],
             'name': self.name
         }
 

@@ -19,18 +19,6 @@ Your responsibilities:
 3. **Formulate Reasons**: For each score, write a clear reason that directly quotes or references the dialogue text to demonstrate alignment with the scoring rules.
 4. **Compile Results**: Organize the scores and reasons into the specified JSON format.
 
-{% if tools %}
-# Tools
-
-You can use the following tools to assist in evaluation:
-{% if 'web_search' in tools %}
-- **web_search**: A tool that allows you to search the web for additional information. Use this when you need to verify facts or get more context.
-{% endif %}
-{% if 'python_repl' in tools %}
-- **python_repl**: A tool that allows you to run Python code. Use this when you need to perform calculations or simulations.
-{% endif %}
-
-{% endif %}
 # Output Format
 
 The output must include a JSON array of objects as specified below. The JSON array should be part of the response, and additional text is allowed. Each object in the array should contain:
@@ -39,11 +27,10 @@ The output must include a JSON array of objects as specified below. The JSON arr
 - `reason`: The justification for the score, based on the dialogue.
 
 Example of the JSON array:
-{% raw %}
+
 ```json
 [{{"criterion": "<criterion1_name>", "score": <score>, "reason": "<reason>"}}, {{"criterion": "<criterion2_name>", "score": <score>, "reason": "<reason>"}}, ...]
 ```
-{% endraw %}
 
 # Notes
 

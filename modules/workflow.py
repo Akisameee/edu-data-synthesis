@@ -237,13 +237,15 @@ class Workflow:
         }
     
     @classmethod
-    def from_dict(cls, data: dict) -> 'Workflow':
+    def from_dict(cls, data: dict | str) -> 'Workflow':
+        if isinstance(data, str):
+            with open(data, 'r', encoding = 'utf-8') as f:
+                data = json.load(f)
         module_name = data['class_module']
         class_name = data['class_name']
         module = __import__(module_name, fromlist=[class_name])
         workflow_class = getattr(module, class_name)
         workflow: Workflow = workflow_class()
-
         workflow.nodes = {name: Node.from_dict(data) for name, data in data['nodes'].items()}
         workflow.edges = data['edges']
         return workflow

@@ -13,14 +13,26 @@ class Evaluate(Node):
     input_state = 'assistant'
     output_state = 'scored'
     max_indegree = 1
+
+    fewshot_samples: List[Messages] = []
     
     @retry(max_attempt = 3)
     async def __call__(
         self,
         messages: Messages,
     ) -> Messages:
-        system_prompt = evaluate_system_template.format(messages)
+        if messages.metadata.id and messages.metadata.id in [s.metadata.id for s in self.fewshot_samples]:
+            raise RuntimeError(f'Data {messages.metadata.id} has been used as a fewshot sample.')
+        
+        system_prompt = evaluate_system_template.format(
+            messages, tools = [tool.name for tool in self.tools]
+        )
         user_prompt = evaluate_user_template.format(messages)
+
+        # with open('test_system_prompt.md', 'w', encoding='utf-8') as f:
+        #     f.write(system_prompt)
+        # with open('test_user_prompt.md', 'w', encoding='utf-8') as f:
+        #     f.write(user_prompt)
 
         response, cost = await self.get_response(
             messages = [

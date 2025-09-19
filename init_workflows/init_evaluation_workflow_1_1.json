@@ -1,0 +1,34 @@
+{
+    "class_module": "modules.workflow",
+    "class_name": "EvaluationWorkflow",
+    "nodes": {
+        "output": {
+            "class_module": "modules.nodes.identity",
+            "class_name": "EvaluationOutput",
+            "model_name": null,
+            "name": "output"
+        },
+        "input": {
+            "class_module": "modules.nodes.identity",
+            "class_name": "EvaluationInput",
+            "model_name": null,
+            "name": "input"
+        },
+        "evaluate_0": {
+            "class_module": "modules.nodes.evaluate",
+            "class_name": "Evaluate",
+            "model_name": "deepseek-v3",
+            "name": "evaluate_0"
+        }
+    },
+    "edges": [
+        [
+            "input",
+            "evaluate_0"
+        ],
+        [
+            "evaluate_0",
+            "output"
+        ]
+    ]
+}

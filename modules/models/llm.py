@@ -110,15 +110,16 @@ class LLM_API(Base_LLM):
         if tools:
             client_with_tools = self.client.bind_tools(tools)
         cost = 0
-        while True:
+        max_tool_call_steps = kwargs.get('max_tool_call_steps', 5)
+        for _ in range(max_tool_call_steps):
             response = await client_with_tools.ainvoke(langchain_messages, **kwargs)
             langchain_messages.append(response)
             cost += self.get_cost(response)
             tool_messages = await self._execute_tools(response, tools)
             if tool_messages:
                 langchain_messages += tool_messages
-            else: break
-        return response, cost
+            else: return response, cost
+        raise RuntimeError(f'Exceeded max tool call steps: {max_tool_call_steps}.')
     
     async def _execute_tools(self, response: BaseMessage, tools: List[BaseTool]) -> List[ToolMessage]:
         tool_messages = []

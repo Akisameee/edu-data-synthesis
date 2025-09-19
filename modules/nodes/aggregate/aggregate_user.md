@@ -1,10 +1,10 @@
 Provided Inputs:
 
 - `scenario`:
-{scenario}
+{{scenario}}
 - `messages`:
-{messages}
+{{messages}}
 - `criteria`:
-{criteria}
+{{criteria}}
 - `evaluations`:
-{evaluations}
+{{evaluations}}
