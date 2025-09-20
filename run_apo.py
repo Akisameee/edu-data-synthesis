@@ -1,11 +1,9 @@
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '6,7'
-
 import dspy
 from dspy.datasets import HotPotQA
 
 from modules.models import Base_LLM, get_model
 from modules.workflow import *
+from modules.nodes.utils import extract_json
 
 def evaluation_metric(data, result, trace=None):
     scores_labels = data._store['answer']
@@ -37,43 +35,11 @@ def evaluation_metric(data, result, trace=None):
 
 def perpare_datas():
 
-    language = 'zh'
-    scenarios = read_scenarios('./data/scenario', language)
-    criterias = read_criterias('./data/criteria', language)  
-
-    sub_eval_datas = read_jsonl(f'./eval_res/sub_eval_samples.jsonl')
-    eval_datas = read_jsonl(f'./eval_res/eval_samples.jsonl')
-
-    val_ids = [s_data['id'] for s_data in sub_eval_datas]
-
-    train_datas = {}
-    val_datas = {}
-    for eval_data in eval_datas:
-        if not eval_data['eval'].startswith('human_'):
-            continue
+    train_dataset = EvaluationDataset('./data/eval_data/train_eval_data.jsonl')
+    val_dataset = EvaluationDataset('./data/eval_data/val_eval_data.jsonl')
         
-        if eval_data['id'] in val_ids:
-            datas = val_datas
-        else:
-            datas = train_datas
-
-        if eval_data['id'] not in datas:
-            scenario = scenarios[eval_data['task']]
-            messages = Messages([Message(**message) for message in eval_data['message']])
-            question = evaluation_template.format(
-                scenario = scenario,
-                message = messages.to_list(),
-                criteria = criterias[scenario['task']]
-            )
-            datas[eval_data['id']] = dspy.Example({
-                'question': question,
-                'answer': {},
-                'criteria': criterias[scenario['task']]
-            })
-        datas[eval_data['id']]['answer'][eval_data['eval']] = eval_data['scores']
-        
-    trainset = [x.with_inputs('question') for id, x in train_datas.items()]
-    valset = [x.with_inputs('question') for id, x in val_datas.items()]
+    trainset = [x.with_inputs('question') for id, x in train_dataset.items()]
+    valset = [x.with_inputs('question') for id, x in val_dataset]
     return trainset, valset
 
 trainset, valset = perpare_datas()

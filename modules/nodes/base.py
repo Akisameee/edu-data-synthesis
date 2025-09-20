@@ -5,6 +5,7 @@ from copy import deepcopy
 from typing import Callable
 from string import Formatter
 import aiofiles
+from jinja2 import Environment, FileSystemLoader, Template as JinjaTemplate, meta
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
 
@@ -17,9 +18,6 @@ from modules.base import *
 
 CACHE_DIR = './modules/nodes/.cache'
 
-from jinja2 import Environment, FileSystemLoader, Template as JinjaTemplate, meta
-from string import Formatter
-
 class Template:
     template: JinjaTemplate
     keys: Set[str]
@@ -29,10 +27,10 @@ class Template:
         template_dir = os.path.dirname(template_path)
         template_file = os.path.basename(template_path)
         self.env = Environment(
-            loader=FileSystemLoader(template_dir),
-            autoescape=False,
-            trim_blocks=True,
-            lstrip_blocks=True
+            loader = FileSystemLoader(template_dir),
+            autoescape = False,
+            trim_blocks = True,
+            lstrip_blocks = True
         )
         with open(template_path, 'r', encoding='utf-8') as f:
             template_content = f.read()
