@@ -75,3 +75,18 @@ env = Environment()
 template_content = "Hello {{ name }} {test}"
 parsed_content = env.parse(template_content)
 print(parsed_content)
+
+import hashlib
+
+def stable_hash(data):
+    """跨运行实例的稳定哈希函数"""
+    if not isinstance(data, str):
+        data = str(data)
+    data = data.encode('utf-8')
+    
+    # 使用SHA-256等加密哈希函数
+    return int.from_bytes(hashlib.sha256(data).digest()[:8], byteorder='big')
+
+# 无论何时运行，相同输入总是得到相同输出
+print(stable_hash(('testtesttest', 'deepseek-chat', ['123', '4567'])))  # 总是相同
+print(stable_hash("hello"))  # 总是相同

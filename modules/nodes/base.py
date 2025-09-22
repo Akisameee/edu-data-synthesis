@@ -15,8 +15,9 @@ sys.path.insert(0, '..')
 from modules.models import *
 from modules.tools import *
 from modules.base import *
+from modules.utils import *
 
-CACHE_DIR = './modules/nodes/.cache'
+CACHE_DIR = './opt_res/.cache'
 
 class Template:
     template: JinjaTemplate
@@ -54,34 +55,15 @@ class Template:
         if missing_vars: raise KeyError(f'Missing variables: {missing_vars}')
         return self.template.render(**kwargs)
 
-# class Template:
-#     template: str
-#     keys: Set[str]
-
-#     def __init__(self, template_path: str) -> None:
-#         with open(template_path, 'r', encoding = 'utf-8') as f:
-#             self.template = f.read()
-#         formatter = Formatter()
-#         self.keys = set()
-#         for _, key, _, _ in formatter.parse(self.template):
-#             if key is not None:
-#                 self.keys.add(key)
-
-#     def format(self, messages: Messages, **kwargs) -> str:
-#         for key in self.keys:
-#             if key in kwargs:
-#                 continue
-#             elif key == 'messages':
-#                 kwargs[key] = messages.to_list()
-#             elif key == 'scenario':
-#                 kwargs[key] = messages.metadata.scenario.to_md(1)
-#             elif key == 'criteria':
-#                 kwargs[key] = messages.metadata.criteria.to_md(1)
-#             else:
-#                 raise KeyError(f'Failed to format template with key={key}.')
-#         return self.template.format(**kwargs)
+class CallCacheMeta(type):
+    def __new__(cls, name, bases, attrs):
+        new_class = super().__new__(cls, name, bases, attrs)
+        if getattr(new_class, 'cache', False) and '__call__' in attrs:
+            max_cache_count = getattr(new_class, 'max_cache_count', 5)
+            new_class.__call__ = new_class._cache_decorator(max_cache_count)(attrs['__call__'])
+        return new_class
     
-class Node():
+class Node(metaclass=CallCacheMeta):
     name: Optional[str] = None
     input_state: Optional[MessagesState] = None
     output_state: Optional[MessagesState] = None
@@ -107,10 +89,9 @@ class Node():
         self.tools = tools
 
         if self.cache:
-            self.cache_path = os.path.join(CACHE_DIR, '_'.join(self.to_tuple()))
+            self.cache_path = os.path.join(CACHE_DIR, f'{str(self.__hash__())}.jsonl')
             os.makedirs(os.path.dirname(self.cache_path), exist_ok = True)
             self._cache_lock = asyncio.Lock()
-            self.__call__ = self._cache_decorator(self.max_cache_count)(self.__call__)
 
     async def _cache_load(self, messages: Messages, max_cache_count: int) -> Optional[Messages]:
         if messages.metadata.id is None:
@@ -118,42 +99,32 @@ class Node():
         async with self._cache_lock:
             if not os.path.exists(self.cache_path):
                 return None
-            async with aiofiles.open(self.cache_path, 'r', encoding = 'utf-8') as af:
-                cached_dict: Dict[str, List[Dict]] = json.loads(await af.read())
-            if messages.metadata.id not in cached_dict:
-                return None
-            cached_outputs = cached_dict[messages.metadata.id]
-            if len(cached_outputs) < max_cache_count:
+            cached_datas: List[Dict[str, str | List | Dict]] = await aread_jsonl(self.cache_path)
+            cache_hit_datas: List[Dict[str, str | List | Dict]] = []
+            for cached_data in cached_datas:
+                if messages.metadata.id == cached_data.get('id', None) and \
+                    messages.metadata.criteria.names == cached_data.get('criteria_names', []):
+                    cache_hit_datas.append(cached_data)
+            if len(cache_hit_datas) < max_cache_count:
                 return None
             else:
-                cached_output = random.choice(cached_outputs)
-                for key, value in cached_output.items():
-                    if key == 'scores':
-                        messages.scores = EvalScores.from_dict(value)
-                    elif key == 'cost':
-                        messages.cost[self.name] = value
-                    else: raise NotImplementedError
+                cached_data = random.choice(cache_hit_datas)
+                assert 'scores' in cached_data and 'cost' in cached_data
+                messages.scores = EvalScores.from_dict(cached_data['scores'])
+                messages.cost[self.name] = cached_data['cost']
                 return messages
     
     async def _cache_save(self, messages: Messages) -> None:
         if messages.metadata.id is None:
             return
         async with self._cache_lock:
-            if not os.path.exists(self.cache_path):
-                async with aiofiles.open(self.cache_path, 'r', encoding = 'utf-8') as af:
-                    cached_dict: Dict[str, List[Dict]] = json.loads(await af.read())
-            else: cached_dict = {}
-            if messages.metadata.id not in cached_dict:
-                cached_dict[messages.metadata.id] = []
-            cached_output = {}
-            if self.llm is not None: cached_output['cost'] = messages.cost[self.name]
-            if self.output_state == 'scored':
-                cached_output['scores'] = messages.scores.to_dict()
-            else: raise NotImplementedError
-            cached_dict[messages.metadata.id].append(cached_output)
-
-            async with aiofiles.open(self.cache_path, 'w', encoding = 'utf-8') as af:
-                await af.write(json.dumps(cached_dict, ensure_ascii = False, indent = 4))
+            cached_data = {
+                'id': messages.metadata.id,
+                'criteria_names': messages.metadata.criteria.names,
+                'scores': messages.scores.to_dict(),
+                'cost': messages.cost[self.name]
+            }
+            await awrite_jsonl(self.cache_path, [cached_data], append = True)
     
     def _cache_decorator(self, max_cache_count: int = 5) -> Callable:
         def decorator(call_func):
@@ -177,7 +148,7 @@ class Node():
     def to_tuple(self) -> tuple:
         return (
             self.__class__.__name__,
-            self.llm.model_name if self.llm is not None else '',
+            self.llm.name if self.llm is not None else '',
             [tool.name for tool in self.tools]
         )
 
@@ -185,7 +156,7 @@ class Node():
         return {
             'class_module': self.__class__.__module__,
             'class_name': self.__class__.__name__,
-            'model_name': self.llm.model_name if self.llm is not None else None,
+            'model_name': self.llm.name if self.llm is not None else None,
             'tools': [tool.name for tool in self.tools],
             'name': self.name
         }
@@ -199,6 +170,9 @@ class Node():
         node: Node = node_class(llm = data['model_name'], tools = data['tools'])
         node.name = data['name']
         return node
+    
+    def __hash__(self) -> int:
+        return stable_hash(self.to_tuple())
     
     async def __call__(self, inputs: Messages | List[Messages]) -> Any:
         return inputs

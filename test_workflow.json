@@ -1,0 +1,38 @@
+{
+    "class_module": "modules.workflow",
+    "class_name": "EvaluationWorkflow",
+    "nodes": {
+        "input": {
+            "class_module": "modules.nodes.identity",
+            "class_name": "EvaluationInput",
+            "model_name": null,
+            "tools": [],
+            "name": "input"
+        },
+        "output": {
+            "class_module": "modules.nodes.identity",
+            "class_name": "EvaluationOutput",
+            "model_name": null,
+            "tools": [],
+            "name": "output"
+        },
+        "evaluate_0": {
+            "class_module": "modules.nodes.evaluate.evaluate",
+            "class_name": "Evaluate",
+            "model_name": "deepseek-chat",
+            "tools": [],
+            "name": "evaluate_0",
+            "fewshot_metadatas": []
+        }
+    },
+    "edges": [
+        [
+            "input",
+            "evaluate_0"
+        ],
+        [
+            "evaluate_0",
+            "output"
+        ]
+    ]
+}

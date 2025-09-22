@@ -2,6 +2,8 @@ import os
 import json
 import re
 import inspect
+import hashlib
+import aiofiles
 from typing import get_type_hints, Optional, List, Tuple, Any
 
 def yield_json_files(root_dir: str):
@@ -32,14 +34,41 @@ def read_jsonl(path: str):
             try:
                 json_obj = json.loads(line)
                 json_objs.append(json_obj)
-            except Exception as e:
+            except json.JSONDecodeError as e:
                 print(f'Line: {idx}, Error: {e}')
+            except Exception as e:
+                print(f'Line: {idx}, Unexpected Error: {e}')
     return json_objs
 
-def write_jsonl(path: str, json_objs: list):
-    with open(path, 'w', encoding = 'utf-8') as file:
+def write_jsonl(path: str, json_objs: list, append: bool = False):
+    mode = 'a' if append else 'w'
+    with open(path, mode, encoding = 'utf-8') as file:
         for json_obj in json_objs:
             file.write(json.dumps(json_obj, ensure_ascii = False) + '\n')
+
+async def aread_jsonl(path: str) -> List[Any]:
+    json_objs = []
+    async with aiofiles.open(path, 'r', encoding = 'utf-8') as file:
+        idx = 0
+        async for line in file:
+            line = line.strip()
+            if line:
+                try:
+                    json_obj = json.loads(line)
+                    json_objs.append(json_obj)
+                except json.JSONDecodeError as e:
+                    print(f'Line: {idx}, Error: {e}')
+                except Exception as e:
+                    print(f'Line: {idx}, Unexpected Error: {e}')
+            idx += 1
+    return json_objs
+
+async def awrite_jsonl(path: str, json_objs: List[Any], append: bool = False):
+    mode = 'a' if append else 'w'
+    async with aiofiles.open(path, mode, encoding = 'utf-8') as file:
+        for json_obj in json_objs:
+            json_line = json.dumps(json_obj, ensure_ascii = False)
+            await file.write(json_line + '\n')
 
 def read_sampled_data(language: str):
     datas = []
@@ -50,3 +79,9 @@ def read_sampled_data(language: str):
             data['language'] = language
             datas.append(data)
     return datas
+
+def stable_hash(data):
+    if not isinstance(data, str):
+        data = str(data)
+    data = data.encode('utf-8')
+    return int.from_bytes(hashlib.sha256(data).digest()[:8], byteorder='big')

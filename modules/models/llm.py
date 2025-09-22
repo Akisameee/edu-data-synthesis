@@ -16,9 +16,9 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 class Base_LLM():
 
-    def __init__(self, model_name: str) -> None:
+    def __init__(self, name: str) -> None:
         
-        self.model_name = model_name
+        self.name = name
         self.client = None
 
     async def get_response(
@@ -75,19 +75,19 @@ class LLM_API(Base_LLM):
 
     def __init__(
         self,
-        model_name: str,
-        model_name_client: str,
+        name: str,
+        name_client: str,
         api_key: str,
         base_url: str,
         price: dict
     ) -> None:
-        super().__init__(model_name)
-        self.model_name_client = model_name_client
+        super().__init__(name)
+        self.name_client = name_client
         self.api_key = api_key
         self.base_url = base_url
         self.price = price
         self.client = ChatOpenAI(
-            model = model_name_client,
+            model = name_client,
             openai_api_key = api_key,
             openai_api_base = base_url
         )

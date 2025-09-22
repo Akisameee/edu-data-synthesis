@@ -97,6 +97,7 @@ class EvaluationDataset(Dataset):
             if eval_data['eval'] not in evals:
                 evals.append(eval_data['eval'])
             scores = EvalScores(eval_data['scores'])
+            scores.source = eval_data['eval']
             for score in scores:
                 if score.criterion not in self.criteria.names:
                     score.criterion = self.name_map[score.criterion]

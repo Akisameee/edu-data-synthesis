@@ -259,7 +259,7 @@ class Workflow:
         with open(path, 'r') as f:
             return cls.from_dict(json.load(f))
 
-    async def evaluate(self, **kwargs) -> Tuple[float, float]:
+    async def evaluate(self, **kwargs) -> Tuple[float, float, List[Messages]]:
         raise NotImplementedError
 
 class EvaluationWorkflow(Workflow):
@@ -303,7 +303,7 @@ class EvaluationWorkflow(Workflow):
         self,
         dataset: EvaluationDataset,
         max_parallel: int = 8
-    ) -> Tuple[float, float]:
+    ) -> Tuple[float, float, List[Messages]]:
         semaphore = asyncio.Semaphore(max_parallel)
         async def run_with_semaphore(index, inputs: Messages):
             async with semaphore:
@@ -350,7 +350,7 @@ class EvaluationWorkflow(Workflow):
         avg_costs = {name: cost / n_result for name, cost in costs.items()}
         avg_cost = sum(avg_costs.values())
         tqdm.write(f'avg costs: {avg_costs}, avg cost: {avg_cost}')
-        return max_corr, avg_cost
+        return max_corr, avg_cost, messages_predicts
 
 class GenerationWorkflow(Workflow):
 

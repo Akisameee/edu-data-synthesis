@@ -127,7 +127,7 @@ class EvaluationAggregation(Node):
         scores = extract_json(response.content.strip())
         scores = check_scores(scores, messages.metadata.criteria)
 
-        scores.source = self.llm.model_name
+        scores.source = self.llm.name
         messages.scores = scores
         return messages
     
@@ -161,7 +161,7 @@ class EvaluationVoting(Node):
         choice = extract_boxed(response.content.strip())
         scores = scores_dict[choice]
 
-        scores.source = self.llm.model_name
+        scores.source = self.llm.name
         messages.scores = scores
         return messages
     
