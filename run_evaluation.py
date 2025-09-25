@@ -6,8 +6,8 @@ from modules.workflow import *
 
 if __name__ == '__main__':
 
-    # val_dataset = EvaluationDataset('./data/eval_data/val_eval_data.jsonl')
-    val_dataset = EvaluationDataset('./eval_res/sub_eval_samples.jsonl')
+    val_dataset = EvaluationDataset('./data/eval_data/val_eval_data.jsonl')
+    # val_dataset = EvaluationDataset('./eval_res/sub_eval_samples.jsonl')
     val_dataset = val_dataset.sub_criterion(val_dataset.criteria[0].name)
 
     eval_workflow = EvaluationWorkflow()

@@ -4,20 +4,11 @@ from tqdm import tqdm
 import asyncio
 import os
 
-from modules.logging import TqdmLogger
-from modules.workflow import *
-from modules.datas import *
-from modules.utils import *
+from modules.optimizer.base import *
 
-RES_DIR = './opt_res'
+RES_DIR = './workflow_opt_res'
 
-class Optimizer:
-
-    def __init__(self, dataset: Dataset) -> None:
-        optimizer_cls = self.__class__.__name__.lower()
-        self.logger = TqdmLogger(f'{dataset.name}_{optimizer_cls}_opt', RES_DIR)
-
-class WorkflowOptimizer:
+class WorkflowOptimizer(Optimizer):
 
     def __init__(
         self,
@@ -25,17 +16,11 @@ class WorkflowOptimizer:
         train_dataset: Dataset,
         cost_weight: float = -1
     ) -> None:
+        super().__init__(train_dataset, RES_DIR)
         self.workflow: Workflow = init_workflow
-        self.workflows_evaluated: List[Dict[str, Workflow | float]] = []
-        self.train_dataset = train_dataset
         self.cost_weight = cost_weight
         
-        optimizer_cls = self.__class__.__name__.lower()
-        self.logger = TqdmLogger(f'{train_dataset.name}_{optimizer_cls}_opt', RES_DIR)
-
-        self.scores_path = os.path.join(RES_DIR, f'{self.train_dataset.name}_scores.json')
         self.workflows_evaluated = self.load_scores()
-        self.opt_cost = 0
 
     def check_evaluated(self, workflow: Workflow) -> Optional[Tuple[float, float]]:
         for workflow_evaluated in self.workflows_evaluated:
@@ -144,8 +129,8 @@ class LocalSearch(WorkflowOptimizer):
     
     def run(
         self,
-        max_mutation_ops: int = 4,
-        max_iter: int = 10
+        max_iter: int = 10,
+        max_mutation_ops: int = 4
     ) -> Workflow:
         self.logger.info('Evaluating initial workflow...')
         self.evaluate(self.workflow)

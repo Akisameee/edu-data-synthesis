@@ -29,9 +29,11 @@ class Evaluate(Node):
         self,
         llm: Optional[str | Base_LLM],
         tools: Optional[List[str]] = [],
-        fewshot_metadatas: List[Dict[str, str]] = []
+        fewshot_metadatas: List[Dict[str, str]] = [],
+        cache: bool = False,
+        max_cache_count: int = 5
     ) -> None:
-        super().__init__(llm, tools)
+        super().__init__(llm, tools, cache, max_cache_count)
         self.fewshot_samples = self.get_fewshot_samples(fewshot_metadatas)
 
     @staticmethod

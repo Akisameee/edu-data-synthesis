@@ -73,13 +73,12 @@ class Node(metaclass=CallCacheMeta):
     llm: Optional[Base_LLM]
     tools: Optional[List[BaseTool]]
 
-    cache: bool = False
-    max_cache_count: int = 5
-
     def __init__(
         self,
         llm: Optional[str | Base_LLM],
-        tools: Optional[List[str]] = []
+        tools: Optional[List[str]] = [],
+        cache: bool = False,
+        max_cache_count: int = 5
     ) -> None:
         if llm is not None and isinstance(llm, str):
             llm = get_model(llm)
@@ -88,7 +87,7 @@ class Node(metaclass=CallCacheMeta):
             tools = get_tools(tools)
         self.tools = tools
 
-        if self.cache:
+        if cache:
             self.cache_path = os.path.join(CACHE_DIR, f'{str(self.__hash__())}.jsonl')
             os.makedirs(os.path.dirname(self.cache_path), exist_ok = True)
             self._cache_lock = asyncio.Lock()
