@@ -6,7 +6,7 @@ import os
 
 from modules.optimizer.base import *
 
-RES_DIR = './workflow_opt_res'
+RES_DIR = get_config_value('workflow_opt_dir')
 
 class WorkflowOptimizer(Optimizer):
 
@@ -53,8 +53,9 @@ class WorkflowOptimizer(Optimizer):
     def load_scores(self) -> List[Dict[str, Workflow | float]]:
         if not os.path.exists(self.scores_path):
             return []
-        with open(self.scores_path, 'r') as f:
-            datas: List[Dict[str, str | float]] = json.load(f)
+        datas: List[Dict[str, str | float]] = read_jsonl(self.scores_path)
+        # with open(self.scores_path, 'r') as f:
+        #     datas: List[Dict[str, str | float]] = json.load(f)
         workflows_evaluated: List[Dict[str, Workflow | float]] = []
         for data in datas:
             data['workflow'] = Workflow.from_dict(data['workflow'])
@@ -66,8 +67,9 @@ class WorkflowOptimizer(Optimizer):
         for workflow_evaluated in workflows_evaluated:
             workflow_evaluated['workflow'] = workflow_evaluated['workflow'].to_dict()
             datas.append(workflow_evaluated)
-        with open(self.scores_path, 'w') as f:
-            json.dump(datas, f, indent=4)
+        write_jsonl(self.scores_path, datas)
+        # with open(self.scores_path, 'w') as f:
+        #     json.dump(datas, f, indent=4)
 
     def run(self, **kwargs) -> Workflow:
         raise NotImplementedError
@@ -115,11 +117,13 @@ class LocalSearch(WorkflowOptimizer):
         mutated_workflows: List[Tuple[Workflow, Tuple[str, str]]] = []
         mutation_ops = self.get_mutation_ops(workflow, mutated_edges)
         random.shuffle(mutation_ops)
+
         for op in mutation_ops:
             mutated_workflow = op.apply(workflow)
             if mutated_workflow.check() and self.check_evaluated(mutated_workflow) is None:
                 return mutated_workflow
             mutated_workflows.append((mutated_workflow, op.args))
+        
         if max_mutation_ops > 0:
             for mutated_workflow, mutated_edge in mutated_workflows:
                 neighbor = self.get_neighbor(mutated_workflow, max_mutation_ops - 1, mutated_edges + [mutated_edge])
@@ -134,6 +138,7 @@ class LocalSearch(WorkflowOptimizer):
     ) -> Workflow:
         self.logger.info('Evaluating initial workflow...')
         self.evaluate(self.workflow)
+
         for iteration in range(max_iter):
             self.logger.info(f'Optimization step: {iteration + 1}/{max_iter}:')
             neighbor = self.get_neighbor(self.workflow, max_mutation_ops)
@@ -141,7 +146,9 @@ class LocalSearch(WorkflowOptimizer):
                 self.logger.info(f'Unable to find avaliable neighbors.')
                 break
             self.logger.info(f'Found neighbor: {neighbor.sub_nec.edges}.')
+
             if self.evaluate(neighbor) > self.evaluate(self.workflow):
                 self.workflow = neighbor
+        
         return self.workflow
     

@@ -11,7 +11,7 @@ class SystemGenerate(Node):
     def __init__(self, llm: Base_LLM = None) -> None:
         super().__init__(llm)
 
-    async def __call__(
+    async def run(
         self,
         **kwargs
     ) -> Message:
@@ -39,7 +39,7 @@ class UserGenerate(Node):
         return content
 
     @retry(max_attempt = 3)
-    async def __call__(
+    async def run(
         self,
         messages: Messages
     ) -> Messages:
@@ -77,7 +77,7 @@ class AssistantGenerate(Node):
         super().__init__(llm)
 
     @retry(max_attempt = 3)
-    async def __call__(self, messages: Messages) -> Messages:
+    async def run(self, messages: Messages) -> Messages:
         
         completion = await self.llm.get_response(messages = messages.to_list())
         self.llm.get_cost(completion)
@@ -94,7 +94,7 @@ class ResponseAggregate(Node):
         super().__init__(llm)
 
     @retry(max_attempt = 3)
-    async def __call__(self, messages_list: List[Messages]) -> Messages:
+    async def run(self, messages_list: List[Messages]) -> Messages:
 
         n_messages = len(messages_list)
         if n_messages == 1:

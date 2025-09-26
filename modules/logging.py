@@ -46,8 +46,7 @@ class TqdmLogger():
         current_time = datetime.datetime.now()
         time_str = current_time.strftime('%Y-%m-%d %H-%M-%S')
         self.log_dir = os.path.join(res_dir, time_str)
-        if not os.path.exists(self.log_dir):
-            os.makedirs(self.log_dir, exist_ok=True)
+        os.makedirs(self.log_dir, exist_ok = True)
 
         self.logger = get_logger(f'{self.name}_logger', self.log_dir)
 

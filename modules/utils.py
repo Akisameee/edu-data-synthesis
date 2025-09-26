@@ -1,10 +1,30 @@
 import os
 import json
-import re
+import yaml
 import inspect
 import hashlib
 import aiofiles
-from typing import get_type_hints, Optional, List, Tuple, Any
+from typing import get_type_hints, Optional, Dict, List, Tuple, Any
+
+def load_config(config_path: str = './config.yaml') -> Dict[str, Any]:
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f'Config file does not exist: {config_path}')
+    try:
+        with open(config_path, 'r', encoding='utf-8') as file:
+            config = yaml.safe_load(file)
+        return config or {}
+    except yaml.YAMLError as e:
+        raise yaml.YAMLError(f'Config parse error: {e}')
+
+def get_config_value(key_path: str, config_path: str = './config.yaml', default: Any = None) -> Any:
+    keys = key_path.split('.')
+    current = load_config(config_path)
+    for key in keys:
+        if isinstance(current, dict) and key in current:
+            current = current[key]
+        else:
+            return default
+    return current
 
 def yield_json_files(root_dir: str):
     for walk_res in os.walk(root_dir):

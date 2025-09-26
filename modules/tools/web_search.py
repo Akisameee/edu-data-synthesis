@@ -5,17 +5,19 @@ from langchain_community.tools import BaseTool, TavilySearchResults
 import sys
 sys.path.insert(0, '..')
 
+from modules.utils import get_config_value
+
 @dataclass
 class WebSearchConfig:
-    engine: Literal['tavily'] = 'tavily'
-    api_key: str = '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'
+    engine: Literal['tavily'] = get_config_value('websearch.engine')
+    api_key: str = get_config_value('websearch.api_key')
     max_search_results: int = 5
     include_domains: Optional[List[str]] = field(default_factory=list)
     exclude_domains: Optional[List[str]] = field(default_factory=list)
 
 def get_web_search_tool(config: WebSearchConfig) -> BaseTool:
     return TavilySearchResults(
-        name = "web_search",
+        name = 'web_search',
         tavily_api_key = config.api_key,
         max_results = config.max_search_results,
         include_raw_content = False,

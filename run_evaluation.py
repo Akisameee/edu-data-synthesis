@@ -11,7 +11,7 @@ if __name__ == '__main__':
     val_dataset = val_dataset.sub_criterion(val_dataset.criteria[0].name)
 
     eval_workflow = EvaluationWorkflow()
-    eval_workflow.add_node('evaluate_0', Evaluate('deepseek-chat'))
+    eval_workflow.add_node('evaluate_0', Evaluate('deepseek-chat', cache = True))
     # eval_workflow.add_node('evaluate_0', Evaluate('deepseek-chat', [], [
     #     {'id': 'en_question_37_model_0.json', 'eval': 'human_3'},
     #     {'id': 'zh_question_57_model_4.json', 'eval': 'human_3'}

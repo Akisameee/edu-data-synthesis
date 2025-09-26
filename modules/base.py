@@ -39,6 +39,7 @@ class GenericList(Generic[T]):
         ])
 
 class DataClassMixin:
+    
     def to_md(self, indent: int = 0) -> str:
         indent_space = '  ' * indent
         result = []

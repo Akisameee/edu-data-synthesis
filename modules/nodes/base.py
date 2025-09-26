@@ -17,7 +17,7 @@ from modules.tools import *
 from modules.base import *
 from modules.utils import *
 
-CACHE_DIR = './opt_res/.cache'
+CACHE_DIR = get_config_value('cache_dir')
 
 class Template:
     template: JinjaTemplate
@@ -54,16 +54,8 @@ class Template:
         missing_vars = self.keys - set(kwargs.keys())
         if missing_vars: raise KeyError(f'Missing variables: {missing_vars}')
         return self.template.render(**kwargs)
-
-class CallCacheMeta(type):
-    def __new__(cls, name, bases, attrs):
-        new_class = super().__new__(cls, name, bases, attrs)
-        if getattr(new_class, 'cache', False) and '__call__' in attrs:
-            max_cache_count = getattr(new_class, 'max_cache_count', 5)
-            new_class.__call__ = new_class._cache_decorator(max_cache_count)(attrs['__call__'])
-        return new_class
     
-class Node(metaclass=CallCacheMeta):
+class Node:
     name: Optional[str] = None
     input_state: Optional[MessagesState] = None
     output_state: Optional[MessagesState] = None
@@ -87,6 +79,8 @@ class Node(metaclass=CallCacheMeta):
             tools = get_tools(tools)
         self.tools = tools
 
+        self.cache = cache
+        self.max_cache_count = max_cache_count
         if cache:
             self.cache_path = os.path.join(CACHE_DIR, f'{str(self.__hash__())}.jsonl')
             os.makedirs(os.path.dirname(self.cache_path), exist_ok = True)
@@ -124,20 +118,17 @@ class Node(metaclass=CallCacheMeta):
                 'cost': messages.cost[self.name]
             }
             await awrite_jsonl(self.cache_path, [cached_data], append = True)
-    
-    def _cache_decorator(self, max_cache_count: int = 5) -> Callable:
-        def decorator(call_func):
-            if call_func.__name__ != '__call__':
-                raise ValueError('The cache decorator can only be used on __call__ method.')
-            async def wrapper(self: 'Node', messages: Messages, *args, **kwargs):
-                cached_messages = await self._cache_load(messages, max_cache_count)
-                if cached_messages is not None:
-                    return cached_messages
-                result = await call_func(self, messages, *args, **kwargs)
-                await self._cache_save(result)
-                return result
-            return wrapper
-        return decorator
+
+    async def __call__(self, inputs: Messages | List[Messages], *args, **kwargs) -> Any:
+        if self.cache:
+            cached_output = await self._cache_load(inputs, self.max_cache_count)
+            if cached_output is not None:
+                return cached_output
+            result = await self.run(inputs, *args, **kwargs)
+            await self._cache_save(result)
+            return result
+        else:
+            return await self.run(inputs, *args, **kwargs)
 
     async def get_response(self, messages: List[Dict[str, str]], **kwargs) -> Tuple[BaseMessage, float]:
         if self.llm is None:
@@ -148,7 +139,7 @@ class Node(metaclass=CallCacheMeta):
         return (
             self.__class__.__name__,
             self.llm.name if self.llm is not None else '',
-            [tool.name for tool in self.tools]
+            sorted([tool.name for tool in self.tools])
         )
 
     def to_dict(self) -> dict:
@@ -156,7 +147,7 @@ class Node(metaclass=CallCacheMeta):
             'class_module': self.__class__.__module__,
             'class_name': self.__class__.__name__,
             'model_name': self.llm.name if self.llm is not None else None,
-            'tools': [tool.name for tool in self.tools],
+            'tools': sorted([tool.name for tool in self.tools]),
             'name': self.name
         }
 
@@ -173,7 +164,7 @@ class Node(metaclass=CallCacheMeta):
     def __hash__(self) -> int:
         return stable_hash(self.to_tuple())
     
-    async def __call__(self, inputs: Messages | List[Messages]) -> Any:
+    async def run(self, inputs: Messages | List[Messages]) -> Any:
         return inputs
         
 # class Review(Node):

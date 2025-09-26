@@ -12,7 +12,7 @@ class Identity(Node):
     def __init__(self) -> None:
         super().__init__(None)
 
-    async def __call__(self, messages: Messages) -> Messages:
+    async def run(self, messages: Messages) -> Messages:
         return messages
     
 class Input(Identity):
@@ -22,7 +22,7 @@ class GenerationInput(Input):
     input_state = 'user'
     output_state = 'user'
 
-    async def __call__(self, messages: Messages) -> Messages:
+    async def run(self, messages: Messages) -> Messages:
         messages.cost = {}
         return messages
 
@@ -30,7 +30,7 @@ class EvaluationInput(Input):
     input_state = 'assistant'
     output_state = 'assistant'
 
-    async def __call__(self, messages: Messages) -> Messages:
+    async def run(self, messages: Messages) -> Messages:
         messages.cost = {}
         return messages
     

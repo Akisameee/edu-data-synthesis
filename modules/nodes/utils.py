@@ -81,33 +81,27 @@ def check_scores(
     return EvalScores(scores)
 
 def retry(max_attempt: int = 3, verbose: bool = False) -> Callable:
-    def decorator(func):
+    def decorator(func: Callable) -> Callable:
         if inspect.iscoroutinefunction(func):
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
                 n_attempt = 0
                 while n_attempt < max_attempt:
-                    try:
-                        return await func(*args, **kwargs)
+                    try: return await func(*args, **kwargs)
                     except Exception as e:
                         n_attempt += 1
-                        if verbose:
-                            tqdm.write(f"Attempt {n_attempt}/{max_attempt} failed: {e}")
-                        if n_attempt == max_attempt:
-                            raise e
+                        if verbose: tqdm.write(f"Attempt {n_attempt}/{max_attempt} failed: {e}")
+                        if n_attempt == max_attempt: raise e
             return async_wrapper
         else:
             @functools.wraps(func)
             def sync_wrapper(*args, **kwargs):
                 n_attempt = 0
                 while n_attempt < max_attempt:
-                    try:
-                        return func(*args, **kwargs)
+                    try: return func(*args, **kwargs)
                     except Exception as e:
                         n_attempt += 1
-                        if verbose:
-                            tqdm.write(f"Attempt {n_attempt}/{max_attempt} failed: {e}")
-                        if n_attempt == max_attempt:
-                            raise e
+                        if verbose: tqdm.write(f"Attempt {n_attempt}/{max_attempt} failed: {e}")
+                        if n_attempt == max_attempt: raise e
             return sync_wrapper
     return decorator

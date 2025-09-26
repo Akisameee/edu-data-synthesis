@@ -20,7 +20,7 @@ class EvaluationAverage(Node):
         super().__init__(None)
 
     @retry(max_attempt = 3)
-    async def __call__(self, messages_list: List[Messages]) -> Messages:
+    async def run(self, messages_list: List[Messages]) -> Messages:
         if len(messages_list) == 1:
             return messages_list[0]
         
@@ -48,7 +48,7 @@ class EvaluationMax(Node):
         super().__init__(None)
 
     @retry(max_attempt = 3)
-    async def __call__(self, messages_list: List[Messages]) -> Messages:
+    async def run(self, messages_list: List[Messages]) -> Messages:
         if len(messages_list) == 1:
             return messages_list[0]
         
@@ -73,7 +73,7 @@ class EvaluationMin(Node):
         super().__init__(None)
 
     @retry(max_attempt = 3)
-    async def __call__(self, messages_list: List[Messages]) -> Messages:
+    async def run(self, messages_list: List[Messages]) -> Messages:
         if len(messages_list) == 1:
             return messages_list[0]
         
@@ -95,7 +95,7 @@ class EvaluationAggregation(Node):
     max_indegree = None
 
     @retry(max_attempt = 3)
-    async def __call__(self, messages_list: List[Messages]) -> Messages:
+    async def run(self, messages_list: List[Messages]) -> Messages:
         if len(messages_list) == 1:
             return messages_list[0]
         messages = messages_list[0].deepcopy()
@@ -137,7 +137,7 @@ class EvaluationVoting(Node):
     max_indegree = None
 
     @retry(max_attempt = 3)
-    async def __call__(self, messages_list: List[Messages]) -> Messages:
+    async def run(self, messages_list: List[Messages]) -> Messages:
         if len(messages_list) == 1:
             return messages_list[0]
 
@@ -174,7 +174,7 @@ class Debate(Node):
         super().__init__(None)
 
     @retry(max_attempt = 3)
-    async def __call__(self, messages_list: List[Messages]) -> Messages:
+    async def run(self, messages_list: List[Messages]) -> Messages:
         if len(messages_list) == 1:
             return messages_list[0]
         

@@ -1,0 +1,17 @@
+# config.yaml
+models:
+  <model_name>: 
+    provider: <provider_name>
+    name_client: <model_client_name>
+    price:
+      prompt: <model_prompt_price>
+      completion: <model_completion_price>
+
+providers:
+  <provider_name>:
+    api_key: <your_api_key>
+    base_url: <provider_base_url>
+
+cache_dir: ./.cache
+promt_opt_dir: ./prompt_opt_res
+workflow_opt_dir: ./workflow_opt_res

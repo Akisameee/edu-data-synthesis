@@ -35,42 +35,6 @@ class Base_LLM():
     def get_cost(self, completion: BaseMessage, **kwargs) -> float:
         raise NotImplementedError
 
-# class LLM_API(Base_LLM):
-
-#     def __init__(
-#         self,
-#         model_name: str,
-#         model_name_client: str,
-#         api_key: str,
-#         base_url: str,
-#         price: dict
-#     ) -> None:
-#         super().__init__(model_name)
-#         self.model_name_client = model_name_client
-#         self.api_key = api_key
-#         self.base_url = base_url
-#         self.price = price
-#         self.client = AsyncOpenAI(
-#             api_key = api_key,
-#             base_url = base_url
-#         )
-
-#     async def get_response(
-#         self,
-#         messages: List[Dict[str, str]],
-#         **kwargs
-#     ) -> ChatCompletion:
-#         completion = await self.client.chat.completions.create(
-#             model = self.model_name_client,
-#             messages = messages,
-#             **kwargs
-#         )
-#         return completion
-    
-#     def cost(self, completion: ChatCompletion, **kwargs) -> float:
-#         return completion.usage.prompt_tokens * self.price['prompt'] + \
-#             completion.usage.completion_tokens * self.price['completion']
-
 class LLM_API(Base_LLM):
 
     def __init__(
